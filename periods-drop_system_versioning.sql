@@ -5,6 +5,7 @@ AS $function$
 #variable_conflict use_variable
 DECLARE
     system_versioning_row periods.system_versioning;
+    is_dropped boolean;
 BEGIN
     IF table_name IS NULL THEN
         RAISE EXCEPTION 'no table name specified';
@@ -31,14 +32,22 @@ BEGIN
         RETURN false;
     END IF;
 
-    /* Drop the functions. */
-    EXECUTE format('DROP FUNCTION %s %s', system_versioning_row.func_as_of::regprocedure, drop_behavior);
-    EXECUTE format('DROP FUNCTION %s %s', system_versioning_row.func_between::regprocedure, drop_behavior);
-    EXECUTE format('DROP FUNCTION %s %s', system_versioning_row.func_between_symmetric::regprocedure, drop_behavior);
-    EXECUTE format('DROP FUNCTION %s %s', system_versioning_row.func_from_to::regprocedure, drop_behavior);
+    /*
+     * Has the table been dropped?  If so, everything else is also dropped
+     * except for the history table.
+     */
+    is_dropped := NOT EXISTS (SELECT FROM pg_catalog.pg_class AS c WHERE c.oid = table_name);
 
-    /* Drop the "with_history" view. */
-    EXECUTE format('DROP VIEW %s %s', system_versioning_row.view_name, drop_behavior);
+    IF NOT is_dropped THEN
+        /* Drop the functions. */
+        EXECUTE format('DROP FUNCTION %s %s', system_versioning_row.func_as_of::regprocedure, drop_behavior);
+        EXECUTE format('DROP FUNCTION %s %s', system_versioning_row.func_between::regprocedure, drop_behavior);
+        EXECUTE format('DROP FUNCTION %s %s', system_versioning_row.func_between_symmetric::regprocedure, drop_behavior);
+        EXECUTE format('DROP FUNCTION %s %s', system_versioning_row.func_from_to::regprocedure, drop_behavior);
+
+        /* Drop the "with_history" view. */
+        EXECUTE format('DROP VIEW %s %s', system_versioning_row.view_name, drop_behavior);
+    END IF;
 
     /*
      * SQL:2016 11.30 GR 2 says "Every row of T that corresponds to a
@@ -49,8 +58,8 @@ BEGIN
      * The purge parameter tells us that the user really wants to get rid of it
      * all.
      */
-    IF purge THEN
-        PERFORM periods.drop_period(system_versioning_row.history_table_name, drop_behavior, purge);
+    IF NOT is_dropped AND purge THEN
+        PERFORM periods.drop_period(system_versioning_row.history_table_name, 'system_time', drop_behavior, purge);
         EXECUTE format('DROP TABLE %s %s', system_versioning_row.history_table_name, drop_behavior);
     END IF;
 

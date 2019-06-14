@@ -23,10 +23,16 @@ BEGIN
         DELETE FROM periods.foreign_keys AS fk
         WHERE fk.key_name = foreign_key_row.key_name;
 
-        EXECUTE format('DROP TRIGGER %I ON %s', foreign_key_row.fk_insert_trigger, foreign_key_row.table_name);
-        EXECUTE format('DROP TRIGGER %I ON %s', foreign_key_row.fk_update_trigger, foreign_key_row.table_name);
-        EXECUTE format('DROP TRIGGER %I ON %s', foreign_key_row.uk_update_trigger, foreign_key_row.table_name);
-        EXECUTE format('DROP TRIGGER %I ON %s', foreign_key_row.uk_delete_trigger, foreign_key_row.table_name);
+        /* Make sure the table hasn't been dropped before doing these. */
+        IF EXISTS (
+            SELECT FROM pg_catalog.pg_class AS c
+            WHERE c.oid = foreign_key_row.table_name)
+        THEN
+            EXECUTE format('DROP TRIGGER %I ON %s', foreign_key_row.fk_insert_trigger, foreign_key_row.table_name);
+            EXECUTE format('DROP TRIGGER %I ON %s', foreign_key_row.fk_update_trigger, foreign_key_row.table_name);
+            EXECUTE format('DROP TRIGGER %I ON %s', foreign_key_row.uk_update_trigger, foreign_key_row.table_name);
+            EXECUTE format('DROP TRIGGER %I ON %s', foreign_key_row.uk_delete_trigger, foreign_key_row.table_name);
+        END IF;
     END LOOP;
 
     RETURN true;

@@ -17,12 +17,8 @@ BEGIN
         FROM periods.periods AS p
         JOIN pg_catalog.pg_event_trigger_dropped_objects() AS dobj ON dobj.objid = p.table_name
         WHERE dobj.object_type = 'table'
-        ORDER BY dobj.original DESC
     LOOP
-        -- This doesn't work at all :(
-        -- PERFORM periods.drop_period(table_name, period_name, 'CASCADE', true);
-
-        RAISE EXCEPTION 'please drop periods on % first', table_name;
+        PERFORM periods.drop_period(table_name, period_name, 'CASCADE', true);
     END LOOP;
 
     /*

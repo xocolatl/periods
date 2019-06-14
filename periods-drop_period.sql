@@ -8,17 +8,18 @@ DECLARE
     period_row periods.periods;
     system_versioning_row periods.system_versioning;
     portion_view regclass;
+    is_dropped boolean;
 BEGIN
     IF table_name IS NULL THEN
         RAISE EXCEPTION 'no table name specified';
     END IF;
 
-    /* Always serialize operations on our catalogs */
-    PERFORM pg_advisory_xact_lock('periods.periods'::regclass::oid::integer, table_name::oid::integer);
-
     IF period_name IS NULL THEN
         RAISE EXCEPTION 'no period name specified';
     END IF;
+
+    /* Always serialize operations on our catalogs */
+    PERFORM pg_advisory_xact_lock('periods.periods'::regclass::oid::integer, table_name::oid::integer);
 
     SELECT p.*
     INTO period_row
@@ -30,12 +31,15 @@ BEGIN
         RETURN false;
     END IF;
 
-    /* Drop the "for portion" view */
+    /* Drop the "for portion" view if it hasn't been dropped already */
     DELETE FROM periods.for_portion_views AS fpv
     WHERE (fpv.table_name, fpv.period_name) = (table_name, period_name)
     RETURNING fpv.view_name INTO portion_view;
 
-    IF FOUND THEN
+    IF FOUND AND EXISTS (
+        SELECT FROM pg_catalog.pg_class AS c
+        WHERE c.oid = portion_view)
+    THEN
         EXECUTE format('DROP VIEW %s %s', portion_view, drop_behavior);
     END IF;
 
@@ -48,7 +52,7 @@ BEGIN
             RAISE EXCEPTION 'period % is part of a UNIQUE or PRIMARY KEY', period_name;
         END IF;
 
-        /* Check of FOREIGN KEYs */
+        /* Check for FOREIGN KEYs */
         IF EXISTS (
             SELECT FROM periods.foreign_keys AS fk
             WHERE (fk.table_name, fk.period_name) = (table_name, period_name))
@@ -81,6 +85,12 @@ BEGIN
     WHERE (uk.table_name, uk.period_name) = (table_name, period_name);
 
     /*
+     * Has the table been dropped already?  This could happen if the period is
+     * being dropped by the health_check event trigger.
+     */
+    is_dropped := NOT EXISTS (SELECT FROM pg_catalog.pg_class AS c WHERE c.oid = table_name);
+
+    /*
      * Save ourselves the NOTICE if this table doesn't have SYSTEM
      * VERSIONING.
      *
@@ -94,14 +104,14 @@ BEGIN
     THEN
         PERFORM periods.drop_system_versioning(table_name, drop_behavior, purge);
 
-        IF purge THEN
+        IF NOT is_dropped AND purge THEN
             EXECUTE format('ALTER TABLE %s DROP CONSTRAINT %I', table_name, period_row.infinity_check_constraint);
             EXECUTE format('DROP TRIGGER %I ON %s', period_row.generated_always_trigger, table_name);
             EXECUTE format('DROP TRIGGER %I ON %s', period_row.write_history_trigger, table_name);
         END IF;
     END IF;
 
-    IF purge THEN
+    IF NOT is_dropped AND purge THEN
         EXECUTE format('ALTER TABLE %s DROP CONSTRAINT %I',
             table_name, period_row.bounds_check_constraint);
     END IF;

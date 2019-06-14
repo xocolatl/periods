@@ -38,8 +38,11 @@ BEGIN
         DELETE FROM periods.unique_keys AS uk
         WHERE uk.key_name = unique_key_row.key_name;
 
-        /* If purging, drop the underlying constraints */
-        IF purge THEN
+        /* If purging, drop the underlying constraints unless the table has been dropped */
+        IF purge AND EXISTS (
+            SELECT FROM pg_catalog.pg_class AS c
+            WHERE c.oid = unique_key_row.table_name)
+        THEN
             EXECUTE format('ALTER TABLE %s DROP CONSTRAINT %I, DROP CONSTRAINT %I',
                 unique_key_row.table_name, unique_key_row.unique_constraint, unique_key_row.exclude_constraint);
         END IF;
