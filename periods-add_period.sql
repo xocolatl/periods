@@ -24,6 +24,10 @@ BEGIN
         RAISE EXCEPTION 'no table name specified';
     END IF;
 
+    IF period_name IS NULL THEN
+        RAISE EXCEPTION 'no period name specified';
+    END IF;
+
     /* Always serialize operations on our catalogs */
     PERFORM pg_advisory_xact_lock('periods.periods'::regclass::oid::integer, table_name::oid::integer);
 
