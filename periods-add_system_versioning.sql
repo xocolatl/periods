@@ -42,7 +42,7 @@ BEGIN
 
     SELECT n.nspname, c.relname, c.relpersistence, c.relkind
     INTO schema_name, table_name, persistence, kind
-    FROM pg_class AS c
+    FROM pg_catalog.pg_class AS c
     JOIN pg_namespace AS n ON n.oid = c.relnamespace
     WHERE c.oid = table_class;
 
@@ -98,7 +98,7 @@ BEGIN
      */
     SELECT c.oid
     INTO history_table_id
-    FROM pg_class AS c
+    FROM pg_catalog.pg_class AS c
     JOIN pg_namespace AS n ON n.oid = c.relnamespace
     WHERE (n.nspname, c.relname) = (schema_name, history_table_name);
 
@@ -119,14 +119,14 @@ BEGIN
             L (attnum, attname, atttypid, atttypmod, attcollation) AS (
                 SELECT row_number() OVER (ORDER BY a.attnum),
                        a.attname, a.atttypid, a.atttypmod, a.attcollation
-                FROM pg_attribute AS a
+                FROM pg_catalog.pg_attribute AS a
                 WHERE a.attrelid = table_class
                   AND NOT a.attisdropped
             ),
             R (attnum, attname, atttypid, atttypmod, attcollation) AS (
                 SELECT row_number() OVER (ORDER BY a.attnum),
                        a.attname, a.atttypid, a.atttypmod, a.attcollation
-                FROM pg_attribute AS a
+                FROM pg_catalog.pg_attribute AS a
                 WHERE a.attrelid = history_table_id
                   AND NOT a.attisdropped
             )

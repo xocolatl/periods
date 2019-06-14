@@ -44,7 +44,7 @@ BEGIN
 
     SELECT n.nspname, c.relname, c.relpersistence, c.relkind
     INTO schema_name, table_name, persistence, kind
-    FROM pg_class AS c
+    FROM pg_catalog.pg_class AS c
     JOIN pg_namespace AS n ON n.oid = c.relnamespace
     WHERE c.oid = table_class;
 
@@ -84,7 +84,7 @@ BEGIN
      *
      * SQL:2016 11.27 SR 4.b
      */
-    IF EXISTS (SELECT FROM pg_attribute AS a WHERE (a.attrelid, a.attname) = (table_class, period_name)) THEN
+    IF EXISTS (SELECT FROM pg_catalog.pg_attribute AS a WHERE (a.attrelid, a.attname) = (table_class, period_name)) THEN
         RAISE EXCEPTION 'a column named system_time already exists for table "%"', table_class;
     END IF;
 
@@ -93,7 +93,7 @@ BEGIN
     /* Get start column information */
     SELECT a.attnum, a.atttypid, a.attnotnull
     INTO start_attnum, start_type, start_notnull
-    FROM pg_attribute AS a
+    FROM pg_catalog.pg_attribute AS a
     WHERE (a.attrelid, a.attname) = (table_class, start_column_name);
 
     IF NOT FOUND THEN
@@ -120,7 +120,7 @@ BEGIN
     /* Get end column information */
     SELECT a.attnum, a.atttypid, a.attnotnull
     INTO end_attnum, end_type, end_notnull
-    FROM pg_attribute AS a
+    FROM pg_catalog.pg_attribute AS a
     WHERE (a.attrelid, a.attname) = (table_class, end_column_name);
 
     IF NOT FOUND THEN
@@ -169,7 +169,7 @@ BEGIN
      */
     SELECT c.conname
     INTO bounds_check_constraint
-    FROM pg_constraint AS c
+    FROM pg_catalog.pg_constraint AS c
     WHERE c.conrelid = table_class
       AND c.contype = 'c'
       AND pg_get_constraintdef(c.oid) = format('CHECK ((%I < %I))', start_column_name, end_column_name);
@@ -187,7 +187,7 @@ BEGIN
      */
     SELECT c.conname
     INTO infinity_check_constraint
-    FROM pg_constraint AS c
+    FROM pg_catalog.pg_constraint AS c
     WHERE c.conrelid = table_class
       AND c.contype = 'c'
       AND pg_get_constraintdef(c.oid) = format('CHECK ((%I = ''infinity''::timestamp with time zone))', end_column_name);
@@ -204,14 +204,14 @@ BEGIN
         IF start_attnum = 0 THEN
             SELECT a.attnum
             INTO start_attnum
-            FROM pg_attribute AS a
+            FROM pg_catalog.pg_attribute AS a
             WHERE (a.attrelid, a.attname) = (table_class, start_column_name);
         END IF;
 
         IF end_attnum = 0 THEN
             SELECT a.attnum
             INTO end_attnum
-            FROM pg_attribute AS a
+            FROM pg_catalog.pg_attribute AS a
             WHERE (a.attrelid, a.attname) = (table_class, end_column_name);
         END IF;
     END IF;

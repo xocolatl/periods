@@ -122,7 +122,7 @@ BEGIN
      * concurrency here because all period ddl commands lock the periods table.
      */
     key_name := periods.generate_name(
-        (SELECT c.relname FROM pg_class AS c WHERE c.oid = table_name),
+        (SELECT c.relname FROM pg_catalog.pg_class AS c WHERE c.oid = table_name),
         column_names, period_name);
     pass := 0;
     WHILE EXISTS (

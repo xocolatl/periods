@@ -44,8 +44,8 @@ BEGIN
 
     /* For convenience, put the period's attnums in an array */
     period_attnums := ARRAY[
-        (SELECT a.attnum FROM pg_attribute AS a WHERE (a.attrelid, a.attname) = (period_row.table_name, period_row.start_column_name)),
-        (SELECT a.attnum FROM pg_attribute AS a WHERE (a.attrelid, a.attname) = (period_row.table_name, period_row.end_column_name))
+        (SELECT a.attnum FROM pg_catalog.pg_attribute AS a WHERE (a.attrelid, a.attname) = (period_row.table_name, period_row.start_column_name)),
+        (SELECT a.attnum FROM pg_catalog.pg_attribute AS a WHERE (a.attrelid, a.attname) = (period_row.table_name, period_row.end_column_name))
     ];
 
     /* Get attnums from column names */
@@ -78,7 +78,7 @@ BEGIN
     IF unique_constraint IS NOT NULL THEN
         SELECT c.oid, c.contype, c.condeferrable, c.conkey
         INTO constraint_record
-        FROM pg_constraint AS c
+        FROM pg_catalog.pg_constraint AS c
         WHERE (c.conrelid, c.conname) = (table_name, unique_constraint);
 
         IF NOT FOUND THEN
@@ -129,7 +129,7 @@ BEGIN
     IF exclude_constraint IS NOT NULL THEN
         SELECT c.oid, c.contype, c.condeferrable, pg_get_constraintdef(c.oid) AS definition
         INTO constraint_record
-        FROM pg_constraint AS c
+        FROM pg_catalog.pg_constraint AS c
         WHERE (c.conrelid, c.conname) = (table_name, exclude_constraint);
 
         IF NOT FOUND THEN
@@ -156,7 +156,7 @@ BEGIN
      * Generate a name for the unique constraint.  We don't have to worry about
      * concurrency here because all period ddl commands lock the periods table.
      */
-    key_name := periods.generate_name((SELECT c.relname FROM pg_class AS c WHERE c.oid = table_name),
+    key_name := periods.generate_name((SELECT c.relname FROM pg_catalog.pg_class AS c WHERE c.oid = table_name),
                                   column_names, period_name);
     pass := 0;
     WHILE EXISTS (
@@ -180,7 +180,7 @@ BEGIN
     IF alter_cmds <> '{}' THEN
         SELECT format('ALTER TABLE %I.%I %s', n.nspname, c.relname, array_to_string(alter_cmds, ', '))
         INTO sql
-        FROM pg_class AS c
+        FROM pg_catalog.pg_class AS c
         JOIN pg_namespace AS n ON n.oid = c.relnamespace
         WHERE c.oid = table_name;
 
@@ -191,7 +191,7 @@ BEGIN
     IF unique_constraint IS NULL THEN
         SELECT c.conname, c.conindid
         INTO unique_constraint, unique_index
-        FROM pg_constraint AS c
+        FROM pg_catalog.pg_constraint AS c
         WHERE (c.conrelid, c.contype) = (table_name, 'u')
         ORDER BY oid DESC
         LIMIT 1;
@@ -201,7 +201,7 @@ BEGIN
     IF exclude_constraint IS NULL THEN
         SELECT c.conname, c.conindid
         INTO exclude_constraint, exclude_index
-        FROM pg_constraint AS c
+        FROM pg_catalog.pg_constraint AS c
         WHERE (c.conrelid, c.contype) = (table_name, 'x')
         ORDER BY oid DESC
         LIMIT 1;

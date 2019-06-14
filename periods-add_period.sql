@@ -55,7 +55,7 @@ BEGIN
 
     SELECT c.relpersistence, c.relkind
     INTO persistence, kind
-    FROM pg_class AS c
+    FROM pg_catalog.pg_class AS c
     WHERE c.oid = table_name;
 
     IF kind <> 'r' THEN
@@ -96,7 +96,10 @@ BEGIN
      *
      * SQL:2016 11.27 SR 5.c
      */
-    IF EXISTS (SELECT FROM pg_attribute AS a WHERE (a.attrelid, a.attname) = (table_name, period_name)) THEN
+    IF EXISTS (
+        SELECT FROM pg_catalog.pg_attribute AS a
+        WHERE (a.attrelid, a.attname) = (table_name, period_name))
+    THEN
         RAISE EXCEPTION 'a column named "%" already exists for table "%"', period_name, table_name;
     END IF;
 
@@ -110,7 +113,7 @@ BEGIN
     /* Get start column information */
     SELECT a.attnum, a.atttypid, a.attcollation, a.attnotnull
     INTO start_attnum, start_type, start_collation, start_notnull
-    FROM pg_attribute AS a
+    FROM pg_catalog.pg_attribute AS a
     WHERE (a.attrelid, a.attname) = (table_name, start_column_name);
 
     IF NOT FOUND THEN
@@ -124,7 +127,7 @@ BEGIN
     /* Get end column information */
     SELECT a.attnum, a.atttypid, a.attcollation, a.attnotnull
     INTO end_attnum, end_type, end_collation, end_notnull
-    FROM pg_attribute AS a
+    FROM pg_catalog.pg_attribute AS a
     WHERE (a.attrelid, a.attname) = (table_name, end_column_name);
 
     IF NOT FOUND THEN
@@ -152,13 +155,16 @@ BEGIN
 
     /* Get the range type that goes with these columns */
     IF range_type IS NOT NULL THEN
-        IF NOT EXISTS (SELECT FROM pg_range AS r WHERE (r.rngtypid, r.rngsubtype, r.rngcollation) = (range_type, start_type, start_collation)) THEN
+        IF NOT EXISTS (
+            SELECT FROM pg_catalog.pg_range AS r
+            WHERE (r.rngtypid, r.rngsubtype, r.rngcollation) = (range_type, start_type, start_collation))
+        THEN
             RAISE EXCEPTION 'range "%" does not match data type "%"', range_type, start_type;
         END IF;
     ELSE
         SELECT r.rngtypid
         INTO range_type
-        FROM pg_range AS r
+        FROM pg_catalog.pg_range AS r
         JOIN pg_opclass AS c ON c.oid = r.rngsubopc
         WHERE (r.rngsubtype, r.rngcollation) = (start_type, start_collation)
           AND c.opcdefault;
@@ -188,7 +194,7 @@ BEGIN
      */
     SELECT c.conname
     INTO bounds_check_constraint
-    FROM pg_constraint AS c
+    FROM pg_catalog.pg_constraint AS c
     WHERE c.conrelid = table_name
       AND c.contype = 'c'
       AND pg_get_constraintdef(c.oid) = format('CHECK ((%I < %I))', start_column_name, end_column_name);
