@@ -40,7 +40,7 @@ CREATE VIEW periods.information_schema__periods AS
            c.relname AS table_name,
            p.period_name,
            p.start_column_name,
-           p. end_column_name
+           p.end_column_name
     FROM periods.periods AS p
     JOIN pg_class AS c ON c.oid = p.table_name
     JOIN pg_namespace AS n ON n.oid = c.relnamespace;
