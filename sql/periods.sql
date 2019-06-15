@@ -1,45 +1,59 @@
-set search_path = public, periods;
+\set ON_ERROR_STOP 0
+/* Set up a sandbox (too bad if there's a real schema named "periods_tests" */
+DROP SCHEMA IF EXISTS periods_tests CASCADE;
+CREATE SCHEMA periods_tests;
 
-create table vat (kind text not null, amount numeric not null, from_year integer not null, to_year integer not null);
-select add_period('vat', 'validity', 'from_year', 'to_year');
-select add_unique_key('vat', array['kind'], 'validity');
+/* Here we hope btree_gist is installed in public */
+SET search_path = periods_tests, periods, public;
 
-insert into vat values ('sales', 6, 1970, 1985);
 
-create table tree (id integer not null, parent_id integer, other text, vstart date, vend date);
-select add_period('tree', 'validity', 'vstart', 'vend');
-select add_unique_key('tree', '{id,other}', 'validity');
-select add_foreign_key('tree', '{parent_id,other}', 'validity', 'tree_id_other_validity');
-insert into tree values (1, null, 'stinky', '2019-01-01', '2019-03-01');
-insert into tree values (2, 1, 'stinky', '2019-02-01', '2019-02-04');
-insert into tree values (3, 1, 'stinky', '2019-02-01', '2019-02-04');
-update tree set id = 3 where id = 3;
+/*
+ * Test creating a table, dropping a column, and then dropping the whole thing;
+ * without any periods.
+ */
+CREATE TABLE beeswax (col1 text, col2 date);
+ALTER TABLE beeswax DROP COLUMN col1;
+DROP TABLE beeswax;
 
-create table dept (dno integer, dstart date, dend date, dname text);
-select add_period('dept', 'dperiod', 'dstart', 'dend');
-select add_unique_key('dept', '{dno}', 'dperiod');
 
-insert into dept
-values
-    (3, '2009-01-01', '2011-12-31', 'Test'), 
-    (4, '2011-06-01', '2011-12-31', 'QA'),
-    (4, '2007-06-01', '2011-06-01', 'QA');
+/* Basic period definitions with dates */
 
-create table emp (eno integer, estart date, eend date, edept integer);
-select add_period('emp', 'eperiod', 'estart', 'eend');
-select add_unique_key('emp', '{eno}', 'eperiod');
-select add_foreign_key('emp', '{edept}', 'eperiod', 'dept_dno_dperiod');
+CREATE TABLE basic (val text, s date, e date);
+TABLE periods.periods;
+SELECT periods.add_period('basic', 'bp', 's', 'e');
+TABLE periods.periods;
+SELECT periods.drop_period('basic', 'bp');
+TABLE periods.periods;
+SELECT periods.add_period('basic', 'bp', 's', 'e');
+TABLE periods.periods;
+/* Test constraints */
+INSERT INTO basic (val, s, e) VALUES ('x', null, null); --fail
+INSERT INTO basic (val, s, e) VALUES ('x', '3000-01-01', null); --fail
+INSERT INTO basic (val, s, e) VALUES ('x', null, '1000-01-01'); --fail
+INSERT INTO basic (val, s, e) VALUES ('x', '3000-01-01', '1000-01-01'); --fail
+INSERT INTO basic (val, s, e) VALUES ('x', '1000-01-01', '3000-01-01'); --success
+TABLE basic;
+/* Test dropping the whole thing */
+DROP TABLE basic;
+TABLE periods.periods;
 
-insert into emp
-values
-    --(22218, '1010-01-01', '1011-02-03', 3),
-    (22218, '2011-02-03', '2011-11-12', 4),
-    (22218, '2010-01-01', '2011-02-03', 3);
 
-create table forsysver(id integer, val text);
-select periods.add_system_time_period('forsysver');
-select periods.add_system_versioning('forsysver');
-insert into forsysver (id, val) values (1, 'hello'), (2, 'wyrld');
-select pg_sleep_for('250ms');
-update forsysver set val = 'world' where id = 2;
+/* Basic SYSTEM_TIME periods with CASCADE/purge */
 
+CREATE TABLE sysver (val text);
+SELECT periods.add_system_time_period('sysver', 'startname');
+SELECT periods.drop_period('sysver', 'system_time', drop_behavior => 'CASCADE', purge => true);
+SELECT periods.add_system_time_period('sysver', end_column_name => 'endname');
+SELECT periods.drop_period('sysver', 'system_time', drop_behavior => 'CASCADE', purge => true);
+SELECT periods.add_system_time_period('sysver', 'startname', 'endname');
+SELECT periods.drop_system_time_period('sysver', drop_behavior => 'CASCADE', purge => true);
+SELECT periods.add_system_time_period('sysver', 'endname', 'startname');
+SELECT periods.drop_system_time_period('sysver', drop_behavior => 'CASCADE', purge => true);
+SELECT periods.add_system_time_period('sysver');
+\d+ sysver
+DROP TABLE sysver;
+
+
+/* Clean up */
+DROP SCHEMA periods_tests CASCADE;
+RESET search_path;
