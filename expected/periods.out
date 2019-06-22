@@ -149,5 +149,94 @@ Triggers:
     sysver_system_time_write_history AFTER INSERT OR DELETE OR UPDATE ON sysver FOR EACH ROW EXECUTE PROCEDURE periods.write_history()
 
 DROP TABLE sysver;
+TABLE periods.periods;
+ table_name | period_name | start_column_name | end_column_name | range_type | bounds_check_constraint | infinity_check_constraint | generated_always_trigger | write_history_trigger 
+------------+-------------+-------------------+-----------------+------------+-------------------------+---------------------------+--------------------------+-----------------------
+(0 rows)
+
+/* Basic SYSTEM VERSIONING */
+CREATE TABLE sysver (val text);
+SELECT periods.add_system_time_period('sysver');
+ add_system_time_period 
+------------------------
+ t
+(1 row)
+
+TABLE periods.system_versioning;
+ table_name | period_name | history_table_name | view_name | func_as_of | func_between | func_between_symmetric | func_from_to 
+------------+-------------+--------------------+-----------+------------+--------------+------------------------+--------------
+(0 rows)
+
+SELECT periods.add_system_versioning('sysver');
+NOTICE:  history table "sysver_history" created for "sysver", be sure to index it properly
+ add_system_versioning 
+-----------------------
+ 
+(1 row)
+
+TABLE periods.system_versioning;
+ table_name | period_name | history_table_name |      view_name      |               func_as_of                |                            func_between                            |                            func_between_symmetric                            |                            func_from_to                            
+------------+-------------+--------------------+---------------------+-----------------------------------------+--------------------------------------------------------------------+------------------------------------------------------------------------------+--------------------------------------------------------------------
+ sysver     | system_time | sysver_history     | sysver_with_history | sysver__as_of(timestamp with time zone) | sysver__between(timestamp with time zone,timestamp with time zone) | sysver__between_symmetric(timestamp with time zone,timestamp with time zone) | sysver__from_to(timestamp with time zone,timestamp with time zone)
+(1 row)
+
+INSERT INTO sysver (val) VALUES ('hello');
+SELECT val FROM sysver;
+  val  
+-------
+ hello
+(1 row)
+
+SELECT val FROM sysver_history ORDER BY system_time_start;
+ val 
+-----
+(0 rows)
+
+UPDATE sysver SET val = 'world';
+SELECT val FROM sysver;
+  val  
+-------
+ world
+(1 row)
+
+SELECT val FROM sysver_history ORDER BY system_time_start;
+  val  
+-------
+ hello
+(1 row)
+
+DELETE FROM sysver;
+SELECT val FROM sysver;
+ val 
+-----
+(0 rows)
+
+SELECT val FROM sysver_history ORDER BY system_time_start;
+  val  
+-------
+ hello
+ world
+(2 rows)
+
+-- We can't drop the the table without first dropping SYSTEM VERSIONING because
+-- Postgres will complain about dependant objects (our view functions) before
+-- we get a chance to clean them up.
+SELECT periods.drop_system_versioning('sysver');
+ drop_system_versioning 
+------------------------
+ t
+(1 row)
+
+TABLE periods.system_versioning;
+ table_name | period_name | history_table_name | view_name | func_as_of | func_between | func_between_symmetric | func_from_to 
+------------+-------------+--------------------+-----------+------------+--------------+------------------------+--------------
+(0 rows)
+
+DROP TABLE sysver;
+TABLE periods.periods;
+ table_name | period_name | start_column_name | end_column_name | range_type | bounds_check_constraint | infinity_check_constraint | generated_always_trigger | write_history_trigger 
+------------+-------------+-------------------+-----------------+------------+-------------------------+---------------------------+--------------------------+-----------------------
+(0 rows)
+
 /* Clean up */
 DROP EXTENSION periods;

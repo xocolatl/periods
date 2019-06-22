@@ -48,6 +48,34 @@ SELECT periods.add_system_time_period('sysver');
 DROP TABLE sysver;
 TABLE periods.periods;
 
+/* Basic SYSTEM VERSIONING */
+
+CREATE TABLE sysver (val text);
+SELECT periods.add_system_time_period('sysver');
+TABLE periods.system_versioning;
+SELECT periods.add_system_versioning('sysver');
+TABLE periods.system_versioning;
+
+INSERT INTO sysver (val) VALUES ('hello');
+SELECT val FROM sysver;
+SELECT val FROM sysver_history ORDER BY system_time_start;
+
+UPDATE sysver SET val = 'world';
+SELECT val FROM sysver;
+SELECT val FROM sysver_history ORDER BY system_time_start;
+
+DELETE FROM sysver;
+SELECT val FROM sysver;
+SELECT val FROM sysver_history ORDER BY system_time_start;
+
+-- We can't drop the the table without first dropping SYSTEM VERSIONING because
+-- Postgres will complain about dependant objects (our view functions) before
+-- we get a chance to clean them up.
+SELECT periods.drop_system_versioning('sysver');
+TABLE periods.system_versioning;
+DROP TABLE sysver;
+TABLE periods.periods;
+
 
 /* Clean up */
 DROP EXTENSION periods;
