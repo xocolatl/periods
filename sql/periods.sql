@@ -1,11 +1,5 @@
-\set ON_ERROR_STOP 0
-/* Set up a sandbox (too bad if there's a real schema named "periods_tests" */
-DROP SCHEMA IF EXISTS periods_tests CASCADE;
-CREATE SCHEMA periods_tests;
-
-/* Here we hope btree_gist is installed in public */
-SET search_path = periods_tests, periods, public;
-
+/* Install the extension */
+CREATE EXTENSION periods CASCADE;
 
 /*
  * Test creating a table, dropping a column, and then dropping the whole thing;
@@ -52,8 +46,8 @@ SELECT periods.drop_system_time_period('sysver', drop_behavior => 'CASCADE', pur
 SELECT periods.add_system_time_period('sysver');
 \d+ sysver
 DROP TABLE sysver;
+TABLE periods.periods;
 
 
 /* Clean up */
-DROP SCHEMA periods_tests CASCADE;
-RESET search_path;
+DROP EXTENSION periods;

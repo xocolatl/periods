@@ -1,0 +1,153 @@
+/* Install the extension */
+CREATE EXTENSION periods CASCADE;
+/*
+ * Test creating a table, dropping a column, and then dropping the whole thing;
+ * without any periods.
+ */
+CREATE TABLE beeswax (col1 text, col2 date);
+ALTER TABLE beeswax DROP COLUMN col1;
+DROP TABLE beeswax;
+/* Basic period definitions with dates */
+CREATE TABLE basic (val text, s date, e date);
+TABLE periods.periods;
+ table_name | period_name | start_column_name | end_column_name | range_type | bounds_check_constraint | infinity_check_constraint | generated_always_trigger | write_history_trigger 
+------------+-------------+-------------------+-----------------+------------+-------------------------+---------------------------+--------------------------+-----------------------
+(0 rows)
+
+SELECT periods.add_period('basic', 'bp', 's', 'e');
+ add_period 
+------------
+ t
+(1 row)
+
+TABLE periods.periods;
+ table_name | period_name | start_column_name | end_column_name | range_type | bounds_check_constraint | infinity_check_constraint | generated_always_trigger | write_history_trigger 
+------------+-------------+-------------------+-----------------+------------+-------------------------+---------------------------+--------------------------+-----------------------
+ basic      | bp          | s                 | e               | daterange  | basic_bp_check          |                           |                          | 
+(1 row)
+
+SELECT periods.drop_period('basic', 'bp');
+ drop_period 
+-------------
+ t
+(1 row)
+
+TABLE periods.periods;
+ table_name | period_name | start_column_name | end_column_name | range_type | bounds_check_constraint | infinity_check_constraint | generated_always_trigger | write_history_trigger 
+------------+-------------+-------------------+-----------------+------------+-------------------------+---------------------------+--------------------------+-----------------------
+(0 rows)
+
+SELECT periods.add_period('basic', 'bp', 's', 'e');
+ add_period 
+------------
+ t
+(1 row)
+
+TABLE periods.periods;
+ table_name | period_name | start_column_name | end_column_name | range_type | bounds_check_constraint | infinity_check_constraint | generated_always_trigger | write_history_trigger 
+------------+-------------+-------------------+-----------------+------------+-------------------------+---------------------------+--------------------------+-----------------------
+ basic      | bp          | s                 | e               | daterange  | basic_bp_check          |                           |                          | 
+(1 row)
+
+/* Test constraints */
+INSERT INTO basic (val, s, e) VALUES ('x', null, null); --fail
+ERROR:  null value in column "s" violates not-null constraint
+DETAIL:  Failing row contains (x, null, null).
+INSERT INTO basic (val, s, e) VALUES ('x', '3000-01-01', null); --fail
+ERROR:  null value in column "e" violates not-null constraint
+DETAIL:  Failing row contains (x, 01-01-3000, null).
+INSERT INTO basic (val, s, e) VALUES ('x', null, '1000-01-01'); --fail
+ERROR:  null value in column "s" violates not-null constraint
+DETAIL:  Failing row contains (x, null, 01-01-1000).
+INSERT INTO basic (val, s, e) VALUES ('x', '3000-01-01', '1000-01-01'); --fail
+ERROR:  new row for relation "basic" violates check constraint "basic_bp_check"
+DETAIL:  Failing row contains (x, 01-01-3000, 01-01-1000).
+INSERT INTO basic (val, s, e) VALUES ('x', '1000-01-01', '3000-01-01'); --success
+TABLE basic;
+ val |     s      |     e      
+-----+------------+------------
+ x   | 01-01-1000 | 01-01-3000
+(1 row)
+
+/* Test dropping the whole thing */
+DROP TABLE basic;
+TABLE periods.periods;
+ table_name | period_name | start_column_name | end_column_name | range_type | bounds_check_constraint | infinity_check_constraint | generated_always_trigger | write_history_trigger 
+------------+-------------+-------------------+-----------------+------------+-------------------------+---------------------------+--------------------------+-----------------------
+(0 rows)
+
+/* Basic SYSTEM_TIME periods with CASCADE/purge */
+CREATE TABLE sysver (val text);
+SELECT periods.add_system_time_period('sysver', 'startname');
+ add_system_time_period 
+------------------------
+ t
+(1 row)
+
+SELECT periods.drop_period('sysver', 'system_time', drop_behavior => 'CASCADE', purge => true);
+ drop_period 
+-------------
+ t
+(1 row)
+
+SELECT periods.add_system_time_period('sysver', end_column_name => 'endname');
+ add_system_time_period 
+------------------------
+ t
+(1 row)
+
+SELECT periods.drop_period('sysver', 'system_time', drop_behavior => 'CASCADE', purge => true);
+ drop_period 
+-------------
+ t
+(1 row)
+
+SELECT periods.add_system_time_period('sysver', 'startname', 'endname');
+ add_system_time_period 
+------------------------
+ t
+(1 row)
+
+SELECT periods.drop_system_time_period('sysver', drop_behavior => 'CASCADE', purge => true);
+ drop_system_time_period 
+-------------------------
+ t
+(1 row)
+
+SELECT periods.add_system_time_period('sysver', 'endname', 'startname');
+ add_system_time_period 
+------------------------
+ t
+(1 row)
+
+SELECT periods.drop_system_time_period('sysver', drop_behavior => 'CASCADE', purge => true);
+ drop_system_time_period 
+-------------------------
+ t
+(1 row)
+
+SELECT periods.add_system_time_period('sysver');
+ add_system_time_period 
+------------------------
+ t
+(1 row)
+
+\d+ sysver
+                                                               Table "public.sysver"
+      Column       |           Type           | Collation | Nullable |               Default                | Storage  | Stats target | Description 
+-------------------+--------------------------+-----------+----------+--------------------------------------+----------+--------------+-------------
+ val               | text                     |           |          |                                      | extended |              | 
+ startname         | timestamp with time zone |           | not null | 'infinity'::timestamp with time zone | plain    |              | 
+ system_time_end   | timestamp with time zone |           | not null | 'infinity'::timestamp with time zone | plain    |              | 
+ system_time_start | timestamp with time zone |           | not null | transaction_timestamp()              | plain    |              | 
+ endname           | timestamp with time zone |           | not null | transaction_timestamp()              | plain    |              | 
+Check constraints:
+    "sysver_system_time_check" CHECK (system_time_start < system_time_end)
+    "sysver_system_time_end_infinity_check" CHECK (system_time_end = 'infinity'::timestamp with time zone)
+Triggers:
+    sysver_system_time_generated_always BEFORE INSERT OR UPDATE ON sysver FOR EACH ROW EXECUTE PROCEDURE periods.generated_always_as_row_start_end()
+    sysver_system_time_write_history AFTER INSERT OR DELETE OR UPDATE ON sysver FOR EACH ROW EXECUTE PROCEDURE periods.write_history()
+
+DROP TABLE sysver;
+/* Clean up */
+DROP EXTENSION periods;

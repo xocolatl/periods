@@ -222,10 +222,7 @@ SELECT * FROM t__between_symmetric('...', '...');
 ## Completion
 
 There are many things that still need to be done for this extension.
-First of all, it’s not even an extension\! Not all of what is described
-above is complete, and so the transformation to an extension would be
-premature. Adding everything should work, but dropping it again has a
-few… issues.
+Adding everything should work, but dropping it again has a few… issues.
 
 There should also be a proper handling of users modifying the period’s
 properties after we’ve done our tests. This would be generally trivial
