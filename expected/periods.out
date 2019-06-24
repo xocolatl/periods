@@ -1,5 +1,6 @@
 /* Install the extension */
 CREATE EXTENSION periods CASCADE;
+NOTICE:  installing required extension "btree_gist"
 /*
  * Test creating a table, dropping a column, and then dropping the whole thing;
  * without any periods.
