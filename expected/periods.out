@@ -193,6 +193,7 @@ SELECT val FROM sysver_history ORDER BY system_time_start;
 -----
 (0 rows)
 
+SELECT transaction_timestamp() AS ts1 \gset
 UPDATE sysver SET val = 'world';
 SELECT val FROM sysver;
   val  
@@ -206,6 +207,7 @@ SELECT val FROM sysver_history ORDER BY system_time_start;
  hello
 (1 row)
 
+SELECT transaction_timestamp() AS ts2 \gset
 DELETE FROM sysver;
 SELECT val FROM sysver;
  val 
@@ -213,6 +215,57 @@ SELECT val FROM sysver;
 (0 rows)
 
 SELECT val FROM sysver_history ORDER BY system_time_start;
+  val  
+-------
+ hello
+ world
+(2 rows)
+
+/* temporal queries */
+SELECT val FROM sysver__as_of(:'ts1') ORDER BY system_time_start;
+  val  
+-------
+ hello
+(1 row)
+
+SELECT val FROM sysver__as_of(:'ts2') ORDER BY system_time_start;
+  val  
+-------
+ world
+(1 row)
+
+SELECT val FROM sysver__from_to(:'ts1', :'ts2') ORDER BY system_time_start;
+  val  
+-------
+ hello
+ world
+(2 rows)
+
+SELECT val FROM sysver__from_to(:'ts2', :'ts1') ORDER BY system_time_start;
+ val 
+-----
+(0 rows)
+
+SELECT val FROM sysver__between(:'ts1', :'ts2') ORDER BY system_time_start;
+  val  
+-------
+ hello
+ world
+(2 rows)
+
+SELECT val FROM sysver__between(:'ts2', :'ts1') ORDER BY system_time_start;
+ val 
+-----
+(0 rows)
+
+SELECT val FROM sysver__between_symmetric(:'ts1', :'ts2') ORDER BY system_time_start;
+  val  
+-------
+ hello
+ world
+(2 rows)
+
+SELECT val FROM sysver__between_symmetric(:'ts2', :'ts1') ORDER BY system_time_start;
   val  
 -------
  hello
