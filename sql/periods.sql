@@ -93,6 +93,7 @@ SELECT periods.drop_system_versioning('sysver');
 TABLE periods.system_versioning;
 DROP TABLE sysver;
 TABLE periods.periods;
+\d
 
 
 /* Clean up */
