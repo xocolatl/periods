@@ -279,7 +279,18 @@ write_history(PG_FUNCTION_ARGS)
 			return PointerGetDatum(NULL);
 	}
 
-	/* TODO: don't write to history if already changed this transaction */
+	/*
+	 * Don't write to history if already changed this transaction.
+	 * XXX: It might be better to use xmin or something, but this works.
+	 */
+	{
+		TimestampTz		start_val;
+		bool			is_null;
+
+		start_val = DatumGetTimestampTz(SPI_getbinval(old_row, tupledesc, start_num, &is_null));
+		if (start_val == GetCurrentTransactionStartTimestamp())
+			return PointerGetDatum(NULL);
+	}
 
 	/*
 	 * If this table does not have SYSTEM VERSIONING, there is nothing else to
