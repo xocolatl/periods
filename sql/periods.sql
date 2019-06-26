@@ -89,7 +89,7 @@ SELECT val FROM sysver__between_symmetric(:'ts2', :'ts1') ORDER BY system_time_s
 -- We can't drop the the table without first dropping SYSTEM VERSIONING because
 -- Postgres will complain about dependant objects (our view functions) before
 -- we get a chance to clean them up.
-SELECT periods.drop_system_versioning('sysver');
+SELECT periods.drop_system_versioning('sysver', drop_behavior => 'CASCADE', purge => true);
 TABLE periods.system_versioning;
 DROP TABLE sysver;
 TABLE periods.periods;

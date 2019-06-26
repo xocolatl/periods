@@ -1884,7 +1884,7 @@ BEGIN
      * all.
      */
     IF NOT is_dropped AND purge THEN
-        PERFORM periods.drop_period(system_versioning_row.history_table_name, 'system_time', drop_behavior, purge);
+        PERFORM periods.drop_period(table_name, 'system_time', drop_behavior, purge);
         EXECUTE format('DROP TABLE %s %s', system_versioning_row.history_table_name, drop_behavior);
     END IF;
 
