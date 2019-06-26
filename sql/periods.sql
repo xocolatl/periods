@@ -86,6 +86,11 @@ SELECT val FROM sysver__between(:'ts2', :'ts1') ORDER BY system_time_start;
 SELECT val FROM sysver__between_symmetric(:'ts1', :'ts2') ORDER BY system_time_start;
 SELECT val FROM sysver__between_symmetric(:'ts2', :'ts1') ORDER BY system_time_start;
 
+/* TRUNCATE should delete the history, too */
+SELECT val FROM sysver_with_history;
+TRUNCATE sysver;
+SELECT val FROM sysver_with_history; --empty
+
 -- We can't drop the the table without first dropping SYSTEM VERSIONING because
 -- Postgres will complain about dependant objects (our view functions) before
 -- we get a chance to clean them up.

@@ -29,12 +29,13 @@ CREATE TABLE periods.periods (
     infinity_check_constraint name,
     generated_always_trigger name,
     write_history_trigger name,
+    truncate_trigger name,
 
     PRIMARY KEY (table_name, period_name),
 
     CHECK (start_column_name <> end_column_name),
-    CHECK (period_name = 'system_time' AND num_nulls(infinity_check_constraint, generated_always_trigger, write_history_trigger) = 0
-            OR num_nonnulls(infinity_check_constraint, generated_always_trigger, write_history_trigger) = 0)
+    CHECK (period_name = 'system_time' AND num_nulls(infinity_check_constraint, generated_always_trigger, write_history_trigger, truncate_trigger) = 0
+            OR num_nonnulls(infinity_check_constraint, generated_always_trigger, write_history_trigger, truncate_trigger) = 0)
 );
 SELECT pg_catalog.pg_extension_config_dump('periods.periods', '');
 
@@ -502,6 +503,7 @@ BEGIN
         EXECUTE format('ALTER TABLE %s DROP CONSTRAINT %I', table_name, period_row.infinity_check_constraint);
         EXECUTE format('DROP TRIGGER %I ON %s', period_row.generated_always_trigger, table_name);
         EXECUTE format('DROP TRIGGER %I ON %s', period_row.write_history_trigger, table_name);
+        EXECUTE format('DROP TRIGGER %I ON %s', period_row.truncate_trigger, table_name);
     END IF;
 
     IF NOT is_dropped AND purge THEN
@@ -533,6 +535,7 @@ DECLARE
     infinity_check_constraint name;
     generated_always_trigger name;
     write_history_trigger name;
+    truncate_trigger name;
     alter_commands text[] DEFAULT '{}';
 
     start_attnum smallint;
@@ -738,10 +741,13 @@ BEGIN
     EXECUTE format('CREATE TRIGGER %I BEFORE INSERT OR UPDATE ON %s FOR EACH ROW EXECUTE FUNCTION periods.generated_always_as_row_start_end()', generated_always_trigger, table_class);
 
     write_history_trigger := array_to_string(ARRAY[table_name, 'system_time', 'write', 'history'], '_');
-    EXECUTE format(' CREATE TRIGGER %I AFTER INSERT OR UPDATE OR DELETE ON %s FOR EACH ROW EXECUTE FUNCTION periods.write_history()', write_history_trigger, table_class);
+    EXECUTE format('CREATE TRIGGER %I AFTER INSERT OR UPDATE OR DELETE ON %s FOR EACH ROW EXECUTE FUNCTION periods.write_history()', write_history_trigger, table_class);
 
-    INSERT INTO periods.periods (table_name, period_name, start_column_name, end_column_name, range_type, bounds_check_constraint, infinity_check_constraint, generated_always_trigger, write_history_trigger)
-    VALUES (table_class, period_name, start_column_name, end_column_name, 'tstzrange', bounds_check_constraint, infinity_check_constraint, generated_always_trigger, write_history_trigger);
+    truncate_trigger := array_to_string(ARRAY[table_name, 'truncate'], '_');
+    EXECUTE format('CREATE TRIGGER %I AFTER TRUNCATE ON %s FOR EACH STATEMENT EXECUTE FUNCTION periods.truncate_system_versioning()', truncate_trigger, table_class);
+
+    INSERT INTO periods.periods (table_name, period_name, start_column_name, end_column_name, range_type, bounds_check_constraint, infinity_check_constraint, generated_always_trigger, write_history_trigger, truncate_trigger)
+    VALUES (table_class, period_name, start_column_name, end_column_name, 'tstzrange', bounds_check_constraint, infinity_check_constraint, generated_always_trigger, write_history_trigger, truncate_trigger);
 
     RETURN true;
 END;
@@ -766,6 +772,29 @@ CREATE FUNCTION periods.write_history()
  LANGUAGE c
  STRICT
 AS 'MODULE_PATHNAME';
+
+CREATE FUNCTION periods.truncate_system_versioning()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ STRICT
+AS
+$function$
+#variable_conflict use_variable
+DECLARE
+    history_table_name name;
+BEGIN
+    SELECT sv.history_table_name
+    INTO history_table_name
+    FROM periods.system_versioning AS sv
+    WHERE sv.table_name = TG_RELID;
+
+    IF FOUND THEN
+        EXECUTE format('TRUNCATE %s', history_table_name);
+    END IF;
+
+    RETURN NULL;
+END;
+$function$;
 
 /*
 CREATE FUNCTION periods.add_portion_views(table_name regclass DEFAULT NULL, period_name name DEFAULT NULL)

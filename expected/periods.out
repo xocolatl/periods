@@ -11,8 +11,8 @@ DROP TABLE beeswax;
 /* Basic period definitions with dates */
 CREATE TABLE basic (val text, s date, e date);
 TABLE periods.periods;
- table_name | period_name | start_column_name | end_column_name | range_type | bounds_check_constraint | infinity_check_constraint | generated_always_trigger | write_history_trigger 
-------------+-------------+-------------------+-----------------+------------+-------------------------+---------------------------+--------------------------+-----------------------
+ table_name | period_name | start_column_name | end_column_name | range_type | bounds_check_constraint | infinity_check_constraint | generated_always_trigger | write_history_trigger | truncate_trigger 
+------------+-------------+-------------------+-----------------+------------+-------------------------+---------------------------+--------------------------+-----------------------+------------------
 (0 rows)
 
 SELECT periods.add_period('basic', 'bp', 's', 'e');
@@ -22,9 +22,9 @@ SELECT periods.add_period('basic', 'bp', 's', 'e');
 (1 row)
 
 TABLE periods.periods;
- table_name | period_name | start_column_name | end_column_name | range_type | bounds_check_constraint | infinity_check_constraint | generated_always_trigger | write_history_trigger 
-------------+-------------+-------------------+-----------------+------------+-------------------------+---------------------------+--------------------------+-----------------------
- basic      | bp          | s                 | e               | daterange  | basic_bp_check          |                           |                          | 
+ table_name | period_name | start_column_name | end_column_name | range_type | bounds_check_constraint | infinity_check_constraint | generated_always_trigger | write_history_trigger | truncate_trigger 
+------------+-------------+-------------------+-----------------+------------+-------------------------+---------------------------+--------------------------+-----------------------+------------------
+ basic      | bp          | s                 | e               | daterange  | basic_bp_check          |                           |                          |                       | 
 (1 row)
 
 SELECT periods.drop_period('basic', 'bp');
@@ -34,8 +34,8 @@ SELECT periods.drop_period('basic', 'bp');
 (1 row)
 
 TABLE periods.periods;
- table_name | period_name | start_column_name | end_column_name | range_type | bounds_check_constraint | infinity_check_constraint | generated_always_trigger | write_history_trigger 
-------------+-------------+-------------------+-----------------+------------+-------------------------+---------------------------+--------------------------+-----------------------
+ table_name | period_name | start_column_name | end_column_name | range_type | bounds_check_constraint | infinity_check_constraint | generated_always_trigger | write_history_trigger | truncate_trigger 
+------------+-------------+-------------------+-----------------+------------+-------------------------+---------------------------+--------------------------+-----------------------+------------------
 (0 rows)
 
 SELECT periods.add_period('basic', 'bp', 's', 'e');
@@ -45,9 +45,9 @@ SELECT periods.add_period('basic', 'bp', 's', 'e');
 (1 row)
 
 TABLE periods.periods;
- table_name | period_name | start_column_name | end_column_name | range_type | bounds_check_constraint | infinity_check_constraint | generated_always_trigger | write_history_trigger 
-------------+-------------+-------------------+-----------------+------------+-------------------------+---------------------------+--------------------------+-----------------------
- basic      | bp          | s                 | e               | daterange  | basic_bp_check          |                           |                          | 
+ table_name | period_name | start_column_name | end_column_name | range_type | bounds_check_constraint | infinity_check_constraint | generated_always_trigger | write_history_trigger | truncate_trigger 
+------------+-------------+-------------------+-----------------+------------+-------------------------+---------------------------+--------------------------+-----------------------+------------------
+ basic      | bp          | s                 | e               | daterange  | basic_bp_check          |                           |                          |                       | 
 (1 row)
 
 /* Test constraints */
@@ -73,8 +73,8 @@ TABLE basic;
 /* Test dropping the whole thing */
 DROP TABLE basic;
 TABLE periods.periods;
- table_name | period_name | start_column_name | end_column_name | range_type | bounds_check_constraint | infinity_check_constraint | generated_always_trigger | write_history_trigger 
-------------+-------------+-------------------+-----------------+------------+-------------------------+---------------------------+--------------------------+-----------------------
+ table_name | period_name | start_column_name | end_column_name | range_type | bounds_check_constraint | infinity_check_constraint | generated_always_trigger | write_history_trigger | truncate_trigger 
+------------+-------------+-------------------+-----------------+------------+-------------------------+---------------------------+--------------------------+-----------------------+------------------
 (0 rows)
 
 /* Basic SYSTEM_TIME periods with CASCADE/purge */
@@ -148,11 +148,12 @@ Check constraints:
 Triggers:
     sysver_system_time_generated_always BEFORE INSERT OR UPDATE ON sysver FOR EACH ROW EXECUTE PROCEDURE periods.generated_always_as_row_start_end()
     sysver_system_time_write_history AFTER INSERT OR DELETE OR UPDATE ON sysver FOR EACH ROW EXECUTE PROCEDURE periods.write_history()
+    sysver_truncate AFTER TRUNCATE ON sysver FOR EACH STATEMENT EXECUTE PROCEDURE periods.truncate_system_versioning()
 
 DROP TABLE sysver;
 TABLE periods.periods;
- table_name | period_name | start_column_name | end_column_name | range_type | bounds_check_constraint | infinity_check_constraint | generated_always_trigger | write_history_trigger 
-------------+-------------+-------------------+-----------------+------------+-------------------------+---------------------------+--------------------------+-----------------------
+ table_name | period_name | start_column_name | end_column_name | range_type | bounds_check_constraint | infinity_check_constraint | generated_always_trigger | write_history_trigger | truncate_trigger 
+------------+-------------+-------------------+-----------------+------------+-------------------------+---------------------------+--------------------------+-----------------------+------------------
 (0 rows)
 
 /* Basic SYSTEM VERSIONING */
@@ -272,6 +273,20 @@ SELECT val FROM sysver__between_symmetric(:'ts2', :'ts1') ORDER BY system_time_s
  world
 (2 rows)
 
+/* TRUNCATE should delete the history, too */
+SELECT val FROM sysver_with_history;
+  val  
+-------
+ hello
+ world
+(2 rows)
+
+TRUNCATE sysver;
+SELECT val FROM sysver_with_history; --empty
+ val 
+-----
+(0 rows)
+
 -- We can't drop the the table without first dropping SYSTEM VERSIONING because
 -- Postgres will complain about dependant objects (our view functions) before
 -- we get a chance to clean them up.
@@ -288,8 +303,8 @@ TABLE periods.system_versioning;
 
 DROP TABLE sysver;
 TABLE periods.periods;
- table_name | period_name | start_column_name | end_column_name | range_type | bounds_check_constraint | infinity_check_constraint | generated_always_trigger | write_history_trigger 
-------------+-------------+-------------------+-----------------+------------+-------------------------+---------------------------+--------------------------+-----------------------
+ table_name | period_name | start_column_name | end_column_name | range_type | bounds_check_constraint | infinity_check_constraint | generated_always_trigger | write_history_trigger | truncate_trigger 
+------------+-------------+-------------------+-----------------+------------+-------------------------+---------------------------+--------------------------+-----------------------+------------------
 (0 rows)
 
 \d
