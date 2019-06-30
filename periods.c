@@ -7,6 +7,7 @@
 #include "commands/trigger.h"
 #include "datatype/timestamp.h"
 #include "executor/spi.h"
+#include "utils/elog.h"
 #include "utils/rel.h"
 #include "utils/timestamp.h"
 
@@ -14,6 +15,8 @@ PG_MODULE_MAGIC;
 
 PG_FUNCTION_INFO_V1(generated_always_as_row_start_end);
 PG_FUNCTION_INFO_V1(write_history);
+
+#define ERRCODE_INVALID_ROW_VERSION MAKE_SQLSTATE('2','2','0','1','H')
 
 void GetPeriodColumnNames(Relation rel, char *period_name, char **start_name, char **end_name);
 Oid GetHistoryTable(Relation rel);
@@ -298,6 +301,20 @@ write_history(PG_FUNCTION_ARGS)
 		HeapTuple	history_tuple;
 		Datum	   *values;
 		bool	   *nulls;
+
+		/*
+		 * There is a weird case in READ UNCOMMITTED and READ COMMITTED where a
+		 * transaction can UPDATE/DELETE a row created by a transaction that
+		 * started later.  In effect, system-versioned tables must be run at
+		 * the SERIALIZABLE level and so if we come across such an anomaly, we
+		 * give an invalid row version error, per spec.
+		 */
+		start_val = DatumGetTimestampTz(SPI_getbinval(old_row, tupledesc, start_num, &is_null));
+		if (start_val > GetCurrentTransactionStartTimestamp())
+			ereport(ERROR,
+					(errcode(ERRCODE_INVALID_ROW_VERSION),
+					 errmsg("could not write history because the ROW START transaction started after this transaction"),
+					 errhint("The transaction might succeed if retried.")));
 
 		/* Open the history table for inserting */
 		history_rel = heap_open(history_id, RowExclusiveLock);
