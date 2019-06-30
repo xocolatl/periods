@@ -150,39 +150,40 @@ $function$
 SELECT pg_advisory_xact_lock('periods.periods'::regclass::oid::integer, table_name::oid::integer);
 $function$;
 
-CREATE FUNCTION periods.generate_name(table_name name, column_names name[], period_name name)
+CREATE FUNCTION periods._choose_name(resizable text[], fixed text DEFAULT NULL, separator text DEFAULT '_', extra integer DEFAULT 2)
  RETURNS name
- IMMUTABLE STRICT
+ IMMUTABLE
  LANGUAGE plpgsql
 AS
 $function$
+#variable_conflict use_variable
 DECLARE
+    max_length integer;
     result text;
 BEGIN
     /*
-     * We want a name of the form "table_column1_column2_period_NN".  We always
-     * want the table and the period so we'll add the columns one by one until
-     * we run out of room.
-     *
-     * If "table_period_NN" is already too long, we want to keep as much of
-     * each name as possible so we trim the longest one until they both fit.
+     * Reduce the resizable texts until they and the fixed text fit in
+     * NAMEDATALEN.  This probably isn't very efficient but it's not on a hot
+     * code path so we don't care.
      */
-    WHILE octet_length(format('%s_%s_99', table_name, period_name)) > 63 LOOP
-        IF octet_length(table_name) > octet_length(period_name) THEN
-            table_name := left(table_name, -1);
-        ELSE
-            period_name := left(period_name, -1);
+
+    SELECT max(length(t))
+    INTO max_length
+    FROM unnest(resizable) AS u (t);
+
+    LOOP
+        result := format('%s%s', array_to_string(resizable, separator), separator || fixed);
+        IF octet_length(result) <= 63-extra THEN
+            RETURN result;
         END IF;
-    END LOOP;
 
-    result := table_name;
-    WHILE octet_length(format('%s_%s_%s_99', table_name, column_names[1], period_name)) < 63 AND column_names <> '{}' LOOP
-        result := result || '_' || column_names[1];
-        column_names := column_names[2:];
+        max_length := max_length - 1;
+        resizable := ARRAY (
+            SELECT left(t, -1)
+            FROM unnest(resizable) WITH ORDINALITY AS u (t, o)
+            ORDER BY o
+        );
     END LOOP;
-
-    /* The _NN part will be added by the caller if needed */
-    RETURN result || '_' || period_name;
 END;
 $function$;
 
@@ -851,6 +852,7 @@ BEGIN
                 SELECT FROM periods.for_portion_views AS _fpv
                 WHERE (_fpv.table_name, _fpv.period_name) = (p.table_name, p.period_name))
     LOOP
+        /* TODO: make sure these names fit NAMEDATALEN */
         view_name := r.table_name || '__for_portion_of_' || r.period_name;
         trigger_name := 'for_portion_of_' || r.period_name;
         EXECUTE format('CREATE VIEW %1$I.%2$I AS TABLE %1$I.%3$I', r.schema_name, view_name, r.table_name);
@@ -1047,8 +1049,10 @@ BEGIN
      * Generate a name for the unique constraint.  We don't have to worry about
      * concurrency here because all period ddl commands lock the periods table.
      */
-    key_name := periods.generate_name((SELECT c.relname FROM pg_catalog.pg_class AS c WHERE c.oid = table_name),
-                                  column_names, period_name);
+    key_name := periods._choose_name(
+        ARRAY[(SELECT c.relname FROM pg_catalog.pg_class AS c WHERE c.oid = table_name),
+              column_names,
+              period_name]);
     pass := 0;
     WHILE EXISTS (
        SELECT FROM periods.unique_keys AS uk
@@ -1335,9 +1339,10 @@ BEGIN
      * Generate a name for the foreign constraint.  We don't have to worry about
      * concurrency here because all period ddl commands lock the periods table.
      */
-    key_name := periods.generate_name(
-        (SELECT c.relname FROM pg_catalog.pg_class AS c WHERE c.oid = table_name),
-        column_names, period_name);
+    key_name := periods._choose_name(
+        ARRAY[(SELECT c.relname FROM pg_catalog.pg_class AS c WHERE c.oid = table_name),
+              column_names,
+              period_name]);
     pass := 0;
     WHILE EXISTS (
        SELECT FROM periods.foreign_keys AS fk
@@ -1356,16 +1361,16 @@ BEGIN
     END IF;
 
     /* Time to make the underlying triggers */
-    fk_insert_name := key_name || '_fk_insert';
+    fk_insert_name := periods._choose_name(ARRAY[key_name], 'fk_insert');
     EXECUTE format('CREATE CONSTRAINT TRIGGER %I AFTER INSERT ON %s FROM %s DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION periods.fk_insert_check(%L)',
         fk_insert_name, table_name, unique_row.table_name, key_name);
-    fk_update_name := key_name || '_fk_update';
+    fk_update_name := periods._choose_name(ARRAY[key_name], 'fk_update');
     EXECUTE format('CREATE CONSTRAINT TRIGGER %I AFTER UPDATE ON %s FROM %s DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION periods.fk_update_check(%L)',
         fk_update_name, table_name, unique_row.table_name, key_name);
-    uk_update_name := key_name || '_uk_update';
+    uk_update_name := periods._choose_name(ARRAY[key_name], 'uk_update');
     EXECUTE format('CREATE CONSTRAINT TRIGGER %I AFTER UPDATE ON %s FROM %s%s FOR EACH ROW EXECUTE FUNCTION periods.uk_update_check(%L)',
         uk_update_name, unique_row.table_name, table_name, upd_action, key_name);
-    uk_delete_name = key_name || '_uk_delete';
+    uk_delete_name := periods._choose_name(ARRAY[key_name], 'uk_delete');
     EXECUTE format('CREATE CONSTRAINT TRIGGER %I AFTER DELETE ON %s FROM %s%s FOR EACH ROW EXECUTE FUNCTION periods.uk_delete_check(%L)',
         uk_delete_name, unique_row.table_name, table_name, del_action, key_name);
 
@@ -1741,12 +1746,12 @@ BEGIN
     END IF;
 
     /* Get all of our "fake" infrastructure ready */
-    history_table_name := table_name || '_history';
-    view_name := table_name || '_with_history';
-    function_as_of_name := table_name || '__as_of';
-    function_between_name := table_name || '__between';
-    function_between_symmetric_name := table_name || '__between_symmetric';
-    function_from_to_name := table_name || '__from_to';
+    history_table_name := periods._choose_name(ARRAY[table_name], 'history');
+    view_name := periods._choose_name(ARRAY[table_name], 'with_history');
+    function_as_of_name := periods._choose_name(ARRAY[table_name], '_as_of');
+    function_between_name := periods._choose_name(ARRAY[table_name], '_between');
+    function_between_symmetric_name := periods._choose_name(ARRAY[table_name], '_between_symmetric');
+    function_from_to_name := periods._choose_name(ARRAY[table_name], '_from_to');
 
     /*
      * Create the history table.  If it already exists we check that all the
