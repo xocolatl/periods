@@ -136,6 +136,20 @@ SELECT pg_catalog.pg_extension_config_dump('periods.system_versioning', '');
 COMMENT ON TABLE periods.system_versioning IS 'A registry of tables with SYSTEM VERSIONING';
 
 
+/*
+ * These function starting with "_" are private to the periods extension and
+ * should not be called by outsiders.  When all the other functions have been
+ * translated to C, they will be removed.
+ */
+CREATE FUNCTION periods._serialize(table_name regclass)
+ RETURNS void
+ LANGUAGE sql
+AS
+$function$
+/* XXX: Is this the best way to do locking? */
+SELECT pg_advisory_xact_lock('periods.periods'::regclass::oid::integer, table_name::oid::integer);
+$function$;
+
 CREATE FUNCTION periods.generate_name(table_name name, column_names name[], period_name name)
  RETURNS name
  IMMUTABLE STRICT
@@ -204,7 +218,7 @@ BEGIN
     END IF;
 
     /* Always serialize operations on our catalogs */
-    PERFORM pg_advisory_xact_lock('periods.periods'::regclass::oid::integer, table_name::oid::integer);
+    PERFORM periods._serialize(table_name);
 
     /*
      * REFERENCES:
@@ -412,7 +426,7 @@ BEGIN
     END IF;
 
     /* Always serialize operations on our catalogs */
-    PERFORM pg_advisory_xact_lock('periods.periods'::regclass::oid::integer, table_name::oid::integer);
+    PERFORM periods._serialize(table_name);
 
     SELECT p.*
     INTO period_row
@@ -553,7 +567,7 @@ BEGIN
     END IF;
 
     /* Always serialize operations on our catalogs */
-    PERFORM pg_advisory_xact_lock('periods.periods'::regclass::oid::integer, table_name::oid::integer);
+    PERFORM periods._serialize(table_class);
 
     /*
      * REFERENCES:
@@ -908,7 +922,7 @@ BEGIN
     END IF;
 
     /* Always serialize operations on our catalogs */
-    PERFORM pg_advisory_xact_lock('periods.periods'::regclass::oid::integer, table_name::oid::integer);
+    PERFORM periods._serialize(table_name);
 
     SELECT p.*
     INTO period_row
@@ -1106,7 +1120,7 @@ BEGIN
     END IF;
 
     /* Always serialize operations on our catalogs */
-    PERFORM pg_advisory_xact_lock('periods.periods'::regclass::oid::integer, table_name::oid::integer);
+    PERFORM periods._serialize(table_name);
 
     FOR unique_key_row IN
         SELECT uk.*
@@ -1231,7 +1245,7 @@ BEGIN
     END IF;
 
     /* Always serialize operations on our catalogs */
-    PERFORM pg_advisory_xact_lock('periods.periods'::regclass::oid::integer, table_name::oid::integer);
+    PERFORM periods._serialize(table_name);
 
     /* Get the period involved */
     SELECT p.*
@@ -1381,7 +1395,7 @@ BEGIN
     END IF;
 
     /* Always serialize operations on our catalogs */
-    PERFORM pg_advisory_xact_lock('periods.periods'::regclass::oid::integer, table_name::oid::integer);
+    PERFORM periods._serialize(table_name);
 
     FOR foreign_key_row IN
         SELECT fk.*
@@ -1671,7 +1685,7 @@ BEGIN
     END IF;
 
     /* Always serialize operations on our catalogs */
-    PERFORM pg_advisory_xact_lock('periods.periods'::regclass::oid::integer, table_class::oid::integer);
+    PERFORM periods._serialize(table_class);
 
     /*
      * REFERENCES:
@@ -1866,7 +1880,7 @@ BEGIN
     END IF;
 
     /* Always serialize operations on our catalogs */
-    PERFORM pg_advisory_xact_lock('periods.periods'::regclass::oid::integer, table_name::oid::integer);
+    PERFORM periods._serialize(table_name);
 
     /*
      * REFERENCES:
