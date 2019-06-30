@@ -130,7 +130,7 @@ When updating a portion of a period, it is illegal to modify either of
 the two columns contained in the period. This extension uses a view with
 an `INSTEAD OF` trigger to figure out what portion of the period you
 would like to modify, and issue the correct DML on the underlying table
-to do the job. This is currently not implemented.
+to do the job.
 
 We see no way to simulate deleting portions of periods, alas.
 

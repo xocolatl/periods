@@ -456,16 +456,7 @@ BEGIN
     END IF;
 
     /* Drop the "for portion" view if it hasn't been dropped already */
-    DELETE FROM periods.for_portion_views AS fpv
-    WHERE (fpv.table_name, fpv.period_name) = (table_name, period_name)
-    RETURNING fpv.view_name INTO portion_view;
-
-    IF FOUND AND EXISTS (
-        SELECT FROM pg_catalog.pg_class AS c
-        WHERE c.oid = portion_view)
-    THEN
-        EXECUTE format('DROP VIEW %s %s', portion_view, drop_behavior);
-    END IF;
+    PERFORM periods.drop_for_portion_view(table_name, period_name, drop_behavior, purge);
 
     /* If this is a system_time period, get rid of the triggers */
     DELETE FROM periods.system_time_periods AS stp
@@ -828,8 +819,7 @@ BEGIN
 END;
 $function$;
 
-/*
-CREATE FUNCTION periods.add_portion_views(table_name regclass DEFAULT NULL, period_name name DEFAULT NULL)
+CREATE FUNCTION periods.add_for_portion_view(table_name regclass DEFAULT NULL, period_name name DEFAULT NULL)
  RETURNS boolean
  LANGUAGE plpgsql
 AS
@@ -838,6 +828,7 @@ $function$
 DECLARE
     r record;
     view_name name;
+    trigger_name name;
 BEGIN
     /*
      * If table_name and period_name are specified, then just add the views for that.
@@ -857,6 +848,9 @@ BEGIN
         RAISE EXCEPTION 'cannot use FOR PORTION OF on SYSTEM_TIME periods';
     END IF;
 
+    /* Always serialize operations on our catalogs */
+    PERFORM pg_advisory_xact_lock('periods.periods'::regclass::oid::integer, table_name::oid::integer);
+
     FOR r IN
         SELECT n.nspname AS schema_name, c.relname AS table_name, p.period_name
         FROM periods.periods AS p
@@ -873,39 +867,181 @@ BEGIN
         view_name := r.table_name || '__for_portion_of_' || r.period_name;
         trigger_name := 'for_portion_of_' || r.period_name;
         EXECUTE format('CREATE VIEW %1$I.%2$I AS TABLE %1$I.%3$I', r.schema_name, view_name, r.table_name);
-        EXECUTE format('CREATE TRIGGER %I INSTEAD OF UPDATE ON %I.%I FOR EACH ROW EXECUTE PROCEDURE periods.update_portion_of(%s, %I)'
-            trigger_name, r.schema_name, r.table_name, r.period_name);
+        EXECUTE format('CREATE TRIGGER %I INSTEAD OF UPDATE ON %I.%I FOR EACH ROW EXECUTE PROCEDURE periods.update_portion_of()',
+            trigger_name, r.schema_name, view_name);
         INSERT INTO periods.for_portion_views (table_name, period_name, view_name, trigger_name)
-            VALUES (format('%I.%I', r.schema_name, r.table_name), r.period_name, format('%I.%I', r.schema_name, view_name));
+            VALUES (format('%I.%I', r.schema_name, r.table_name), r.period_name, format('%I.%I', r.schema_name, view_name), trigger_name);
     END LOOP;
 
     RETURN true;
 END;
 $function$;
 
-CREATE FUNCTION periods.drop_portion_views(table_name regclass, period_name name, drop_behavior periods.drop_behavior DEFAULT 'RESTRICT', purge boolean DEFAULT false)
+CREATE FUNCTION periods.drop_for_portion_view(table_name regclass, period_name name, drop_behavior periods.drop_behavior DEFAULT 'RESTRICT', purge boolean DEFAULT false)
  RETURNS boolean
  LANGUAGE plpgsql
 AS
 $function$
 #variable_conflict use_variable
+DECLARE
+    view_name regclass;
+    trigger_name name;
 BEGIN
+    /*
+     * If table_name and period_name are specified, then just drop the views for that.
+     *
+     * If no period is specified, drop the views for all periods of the table.
+     *
+     * If no table is specified, drop the views everywhere.
+     *
+     * If no table is specified but a period is, that doesn't make any sense.
+     */
+    IF table_name IS NULL AND period_name IS NOT NULL THEN
+        RAISE EXCEPTION 'cannot specify period name without table name';
+    END IF;
+
+    /* Always serialize operations on our catalogs */
+    PERFORM pg_advisory_xact_lock('periods.periods'::regclass::oid::integer, table_name::oid::integer);
+
+    FOR view_name, trigger_name IN
+        DELETE FROM periods.for_portion_views AS fp
+        WHERE (table_name IS NULL OR fp.table_name = table_name)
+          AND (period_name IS NULL OR fp.period_name = period_name)
+        RETURNING fp.view_name, fp.trigger_name
+    LOOP
+        EXECUTE format('DROP TRIGGER %I on %s', trigger_name, view_name);
+        EXECUTE format('DROP VIEW %s %s', view_name, drop_behavior);
+    END LOOP;
+
     RETURN true;
 END;
 $function$;
 
 CREATE FUNCTION periods.update_portion_of()
  RETURNS trigger
- LANGAUGE plpgsql
+ LANGUAGE plpgsql
 AS
 $function$
 #variable_conflict use_variable
+DECLARE
+    period_row periods.periods;
+    table_name regclass;
+    period_name name;
+    datatype text;
+    test boolean;
+
+    jnew jsonb;
+    fromval jsonb;
+    toval jsonb;
+
+    jold jsonb;
+    bstartval jsonb;
+    bendval jsonb;
+
+    pre_row jsonb;
+    new_row jsonb;
+    post_row jsonb;
+    pre_assigned boolean;
+    post_assigned boolean;
+
+    TEST_SQL CONSTANT text :=
+        'VALUES (CAST(%2$L AS %1$s) < CAST(%3$L AS %1$s) AND '
+        '        CAST(%3$L AS %1$s) < CAST(%4$L AS %1$s))';
 BEGIN
-    --TODO
+    /*
+     * REFERENCES:
+     *     SQL:2016 15.13 GR 10
+     */
+
+    /* Get the table and period names from this view */
+    SELECT fpv.table_name, fpv.period_name
+    INTO table_name, period_name
+    FROM periods.for_portion_views AS fpv
+    WHERE fpv.view_name = TG_RELID;
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'table and period not found for view "%"', TG_RELID::regclass;
+    END IF;
+
+    SELECT p.*
+    INTO period_row
+    FROM periods.periods AS p
+    WHERE (p.table_name, p.period_name) = (table_name, period_name);
+
+    SELECT format_type(a.atttypid, a.atttypmod)
+    INTO datatype
+    FROM pg_attribute AS a
+    WHERE (a.attrelid, attname) = (table_name, period_row.start_column_name);
+
+    jnew := row_to_json(NEW);
+    fromval := jnew->period_row.start_column_name;
+    toval := jnew->period_row.end_column_name;
+
+    jold := row_to_json(OLD);
+    bstartval := jold->period_row.start_column_name;
+    bendval := jold->period_row.end_column_name;
+
+    pre_row := jold;
+    new_row := jnew;
+    post_row := jold;
+
+    /* Reset the period columns */
+    new_row := jsonb_set(new_row, ARRAY[period_row.start_column_name], bstartval);
+    new_row := jsonb_set(new_row, ARRAY[period_row.end_column_name], bendval);
+
+    pre_assigned := false;
+    EXECUTE format(TEST_SQL, datatype, bstartval, fromval, bendval) INTO test;
+    IF test THEN
+        pre_assigned := true;
+        pre_row := jsonb_set(pre_row, ARRAY[period_row.end_column_name], fromval);
+        new_row := jsonb_set(new_row, ARRAY[period_row.start_column_name], fromval);
+    END IF;
+
+    post_assigned := false;
+    EXECUTE format(TEST_SQL, datatype, bstartval, toval, bendval) INTO test;
+    IF test THEN
+        post_assigned := true;
+        new_row := jsonb_set(new_row, ARRAY[period_row.end_column_name], toval::jsonb);
+        post_row := jsonb_set(post_row, ARRAY[period_row.start_column_name], toval::jsonb);
+    END IF;
+
+    IF pre_assigned OR post_assigned THEN
+        /* Don't validate foreign keys until all this is done */
+        SET CONSTRAINTS ALL DEFERRED;
+
+        IF pre_assigned THEN
+            EXECUTE format('INSERT INTO %s (%s) VALUES (%s)',
+                table_name,
+                (SELECT string_agg(quote_ident(key), ', ' ORDER BY key) FROM jsonb_each_text(pre_row)),
+                (SELECT string_agg(quote_literal(value), ', ' ORDER BY key) FROM jsonb_each_text(pre_row)));
+        END IF;
+
+        EXECUTE format('UPDATE %s SET %s %s',
+                       table_name,
+                       (SELECT string_agg(format('%I = %L', j.key, j.value), ', ')
+                        FROM (SELECT key, value FROM jsonb_each_text(new_row)
+                              EXCEPT ALL
+                              SELECT key, value FROM jsonb_each_text(jold)
+                             ) AS j
+                       ),
+                       (SELECT format('WHERE (%s) = (%s)',
+                                      string_agg(quote_ident(key), ', ' ORDER BY key),
+                                      string_agg(quote_literal(value), ', ' ORDER BY key))
+                        FROM jsonb_each_text(jold) AS j
+                       )
+                      );
+
+        IF post_assigned THEN
+            EXECUTE format('INSERT INTO %s (%s) VALUES (%s)',
+                table_name,
+                (SELECT string_agg(quote_ident(key), ', ' ORDER BY key) FROM jsonb_each_text(post_row)),
+                (SELECT string_agg(quote_literal(value), ', ' ORDER BY key) FROM jsonb_each_text(post_row)));
+        END IF;
+    END IF;
+
     RETURN NEW;
 END;
 $function$;
-*/
 
 
 CREATE FUNCTION periods.add_unique_key(

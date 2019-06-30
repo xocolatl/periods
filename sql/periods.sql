@@ -68,6 +68,37 @@ DROP TABLE fk;
 DROP TABLE uk;
 
 
+/* FOR PORTION tests */
+
+CREATE TABLE pricing (product text, min_quantity integer, max_quantity integer, price numeric);
+SELECT periods.add_period('pricing', 'quantities', 'min_quantity', 'max_quantity');
+SELECT periods.add_for_portion_view('pricing', 'quantities');
+TABLE periods.for_portion_views;
+/* Test UPDATE FOR PORTION */
+INSERT INTO pricing VALUES ('Trinket', 1, 20, 100);
+TABLE pricing ORDER BY min_quantity;
+UPDATE pricing__for_portion_of_quantities SET min_quantity = 30, max_quantity = 50, price = 80;
+TABLE pricing ORDER BY min_quantity;
+UPDATE pricing__for_portion_of_quantities SET min_quantity = 10, max_quantity = 20, price = 80;
+TABLE pricing ORDER BY min_quantity;
+UPDATE pricing__for_portion_of_quantities SET min_quantity = 5, max_quantity = 15, price = 90;
+TABLE pricing ORDER BY min_quantity;
+-- If we drop the period (without CASCADE) then the FOR PORTION views should be
+-- dropped, too.
+SELECT periods.drop_period('pricing', 'quantities');
+TABLE periods.for_portion_views;
+-- Add it back to test the drop_for_portion_view function
+SELECT periods.add_period('pricing', 'quantities', 'min_quantity', 'max_quantity');
+SELECT periods.add_for_portion_view('pricing', 'quantities');
+-- We can't drop the the table without first dropping the FOR PORTION views
+-- because Postgres will complain about dependant objects (our views) before we
+-- get a chance to clean them up.
+DROP TABLE pricing;
+SELECT periods.drop_for_portion_view('pricing', NULL);
+TABLE periods.for_portion_views;
+DROP TABLE pricing;
+
+
 /* Basic SYSTEM_TIME periods with CASCADE/purge */
 
 CREATE TABLE sysver (val text);

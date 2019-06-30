@@ -157,6 +157,104 @@ PL/pgSQL function periods.uk_delete_check() line 22 at PERFORM
 DELETE FROM uk WHERE (id, s, e) = (200, 3, 5); -- success
 DROP TABLE fk;
 DROP TABLE uk;
+/* FOR PORTION tests */
+CREATE TABLE pricing (product text, min_quantity integer, max_quantity integer, price numeric);
+SELECT periods.add_period('pricing', 'quantities', 'min_quantity', 'max_quantity');
+ add_period 
+------------
+ t
+(1 row)
+
+SELECT periods.add_for_portion_view('pricing', 'quantities');
+ add_for_portion_view 
+----------------------
+ t
+(1 row)
+
+TABLE periods.for_portion_views;
+ table_name | period_name |             view_name              |       trigger_name        
+------------+-------------+------------------------------------+---------------------------
+ pricing    | quantities  | pricing__for_portion_of_quantities | for_portion_of_quantities
+(1 row)
+
+/* Test UPDATE FOR PORTION */
+INSERT INTO pricing VALUES ('Trinket', 1, 20, 100);
+TABLE pricing ORDER BY min_quantity;
+ product | min_quantity | max_quantity | price 
+---------+--------------+--------------+-------
+ Trinket |            1 |           20 |   100
+(1 row)
+
+UPDATE pricing__for_portion_of_quantities SET min_quantity = 30, max_quantity = 50, price = 80;
+TABLE pricing ORDER BY min_quantity;
+ product | min_quantity | max_quantity | price 
+---------+--------------+--------------+-------
+ Trinket |            1 |           20 |   100
+(1 row)
+
+UPDATE pricing__for_portion_of_quantities SET min_quantity = 10, max_quantity = 20, price = 80;
+TABLE pricing ORDER BY min_quantity;
+ product | min_quantity | max_quantity | price 
+---------+--------------+--------------+-------
+ Trinket |            1 |           10 |   100
+ Trinket |           10 |           20 |    80
+(2 rows)
+
+UPDATE pricing__for_portion_of_quantities SET min_quantity = 5, max_quantity = 15, price = 90;
+TABLE pricing ORDER BY min_quantity;
+ product | min_quantity | max_quantity | price 
+---------+--------------+--------------+-------
+ Trinket |            1 |            5 |   100
+ Trinket |            5 |           10 |    90
+ Trinket |           10 |           15 |    90
+ Trinket |           15 |           20 |    80
+(4 rows)
+
+-- If we drop the period (without CASCADE) then the FOR PORTION views should be
+-- dropped, too.
+SELECT periods.drop_period('pricing', 'quantities');
+ drop_period 
+-------------
+ t
+(1 row)
+
+TABLE periods.for_portion_views;
+ table_name | period_name | view_name | trigger_name 
+------------+-------------+-----------+--------------
+(0 rows)
+
+-- Add it back to test the drop_for_portion_view function
+SELECT periods.add_period('pricing', 'quantities', 'min_quantity', 'max_quantity');
+ add_period 
+------------
+ t
+(1 row)
+
+SELECT periods.add_for_portion_view('pricing', 'quantities');
+ add_for_portion_view 
+----------------------
+ t
+(1 row)
+
+-- We can't drop the the table without first dropping the FOR PORTION views
+-- because Postgres will complain about dependant objects (our views) before we
+-- get a chance to clean them up.
+DROP TABLE pricing;
+ERROR:  cannot drop table pricing because other objects depend on it
+DETAIL:  view pricing__for_portion_of_quantities depends on table pricing
+HINT:  Use DROP ... CASCADE to drop the dependent objects too.
+SELECT periods.drop_for_portion_view('pricing', NULL);
+ drop_for_portion_view 
+-----------------------
+ t
+(1 row)
+
+TABLE periods.for_portion_views;
+ table_name | period_name | view_name | trigger_name 
+------------+-------------+-----------+--------------
+(0 rows)
+
+DROP TABLE pricing;
 /* Basic SYSTEM_TIME periods with CASCADE/purge */
 CREATE TABLE sysver (val text);
 SELECT periods.add_system_time_period('sysver', 'startname');
