@@ -258,3 +258,6 @@ do so.
 
 This project adheres to the [PostgreSQL Community Code of
 Conduct](https://www.postgresql.org/about/policies/coc/).
+
+Released under the [PostgreSQL
+License](https://www.postgresql.org/about/licence/).
