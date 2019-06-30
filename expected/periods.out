@@ -312,6 +312,14 @@ SELECT val FROM sysver_with_history; --empty
 -- We can't drop the the table without first dropping SYSTEM VERSIONING because
 -- Postgres will complain about dependant objects (our view functions) before
 -- we get a chance to clean them up.
+DROP TABLE sysver;
+ERROR:  cannot drop table sysver because other objects depend on it
+DETAIL:  view sysver_with_history depends on table sysver
+function sysver__as_of(timestamp with time zone) depends on type sysver_with_history
+function sysver__between(timestamp with time zone,timestamp with time zone) depends on type sysver_with_history
+function sysver__between_symmetric(timestamp with time zone,timestamp with time zone) depends on type sysver_with_history
+function sysver__from_to(timestamp with time zone,timestamp with time zone) depends on type sysver_with_history
+HINT:  Use DROP ... CASCADE to drop the dependent objects too.
 SELECT periods.drop_system_versioning('sysver', drop_behavior => 'CASCADE', purge => true);
  drop_system_versioning 
 ------------------------
