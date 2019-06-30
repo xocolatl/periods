@@ -194,6 +194,8 @@ write_history(PG_FUNCTION_ARGS)
 	TupleDesc		tupledesc;
 	char		   *start_name, *end_name;
 	int16			start_num, end_num;
+	TimestampTz		start_val, end_val;
+	bool			is_null;
 	Oid				history_id;
 
 	/*
@@ -253,9 +255,6 @@ write_history(PG_FUNCTION_ARGS)
 	 */
 	if (!TRIGGER_FIRED_BY_DELETE(trigdata->tg_event))
 	{
-		TimestampTz		start_val, end_val;
-		bool			is_null;
-
 		start_val = DatumGetTimestampTz(SPI_getbinval(new_row, tupledesc, start_num, &is_null));
 		end_val = DatumGetTimestampTz(SPI_getbinval(new_row, tupledesc, end_num, &is_null));
 
@@ -283,14 +282,9 @@ write_history(PG_FUNCTION_ARGS)
 	 * Don't write to history if already changed this transaction.
 	 * XXX: It might be better to use xmin or something, but this works.
 	 */
-	{
-		TimestampTz		start_val;
-		bool			is_null;
-
-		start_val = DatumGetTimestampTz(SPI_getbinval(old_row, tupledesc, start_num, &is_null));
-		if (start_val == GetCurrentTransactionStartTimestamp())
-			return PointerGetDatum(NULL);
-	}
+	start_val = DatumGetTimestampTz(SPI_getbinval(old_row, tupledesc, start_num, &is_null));
+	if (start_val == GetCurrentTransactionStartTimestamp())
+		return PointerGetDatum(NULL);
 
 	/*
 	 * If this table does not have SYSTEM VERSIONING, there is nothing else to
