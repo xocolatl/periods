@@ -282,12 +282,31 @@ write_history(PG_FUNCTION_ARGS)
 	}
 
 	/*
-	 * Don't write to history if already changed this transaction.
-	 * XXX: It might be better to use xmin or something, but this works.
+	 * Don't do anything more if the start time is still the same.
+	 *
+	 * DELETE: SQL:2016 13.4 GR 15)a)iii)2)
+	 * UPDATE: SQL:2016 15.13 GR 9)a)iii)2)
 	 */
 	start_val = DatumGetTimestampTz(SPI_getbinval(old_row, tupledesc, start_num, &is_null));
 	if (start_val == GetCurrentTransactionStartTimestamp())
 		return PointerGetDatum(NULL);
+
+	/*
+	 * There is a weird case in READ UNCOMMITTED and READ COMMITTED where a
+	 * transaction can UPDATE/DELETE a row created by a transaction that
+	 * started later.  In effect, system-versioned tables must be run at the
+	 * SERIALIZABLE level and so if we come across such an anomaly, we give an
+	 * invalid row version error, per spec.
+	 *
+	 * DELETE: SQL:2016 13.4 GR 15)a)iii)1)
+	 * UPDATE: SQL:2016 15.13 GR 9)a)iii)1)
+	 */
+	if (start_val > GetCurrentTransactionStartTimestamp())
+		ereport(ERROR,
+				(errcode(ERRCODE_INVALID_ROW_VERSION),
+				 errmsg("invalid row version"),
+				 errdetail("The row being updated or deleted was created after this transaction started."),
+				 errhint("The transaction might succeed if retried.")));
 
 	/*
 	 * If this table does not have SYSTEM VERSIONING, there is nothing else to
@@ -301,20 +320,6 @@ write_history(PG_FUNCTION_ARGS)
 		HeapTuple	history_tuple;
 		Datum	   *values;
 		bool	   *nulls;
-
-		/*
-		 * There is a weird case in READ UNCOMMITTED and READ COMMITTED where a
-		 * transaction can UPDATE/DELETE a row created by a transaction that
-		 * started later.  In effect, system-versioned tables must be run at
-		 * the SERIALIZABLE level and so if we come across such an anomaly, we
-		 * give an invalid row version error, per spec.
-		 */
-		start_val = DatumGetTimestampTz(SPI_getbinval(old_row, tupledesc, start_num, &is_null));
-		if (start_val > GetCurrentTransactionStartTimestamp())
-			ereport(ERROR,
-					(errcode(ERRCODE_INVALID_ROW_VERSION),
-					 errmsg("could not write history because the ROW START transaction started after this transaction"),
-					 errhint("The transaction might succeed if retried.")));
 
 		/* Open the history table for inserting */
 		history_rel = heap_open(history_id, RowExclusiveLock);
