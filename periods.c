@@ -128,7 +128,7 @@ generated_always_as_row_start_end(PG_FUNCTION_ARGS)
 {
 	TriggerData	   *trigdata = castNode(TriggerData, fcinfo->context);
 	const char	   *funcname = "generated_always_as_row_start_end";
-	Relation		rel = trigdata->tg_relation;
+	Relation		rel;
 	HeapTuple		new_row;
 	TupleDesc		new_tupdesc;
 	Datum			values[2];
@@ -168,6 +168,7 @@ generated_always_as_row_start_end(PG_FUNCTION_ARGS)
 						funcname)));
 		new_row = NULL;			/* keep compiler quiet */
 	}
+	rel = trigdata->tg_relation;
 	new_tupdesc = RelationGetDescr(rel);
 
 	GetPeriodColumnNames(rel, "system_time", &start_name, &end_name);
@@ -192,7 +193,7 @@ write_history(PG_FUNCTION_ARGS)
 {
 	TriggerData	   *trigdata = castNode(TriggerData, fcinfo->context);
 	const char	   *funcname = "write_history";
-	Relation		rel = trigdata->tg_relation;
+	Relation		rel;
 	HeapTuple		old_row, new_row;
 	TupleDesc		tupledesc;
 	char		   *start_name, *end_name;
@@ -244,6 +245,7 @@ write_history(PG_FUNCTION_ARGS)
 		old_row = NULL;			/* keep compiler quiet */
 		new_row = NULL;			/* keep compiler quiet */
 	}
+	rel = trigdata->tg_relation;
 	tupledesc = RelationGetDescr(rel);
 
 	GetPeriodColumnNames(rel, "system_time", &start_name, &end_name);
