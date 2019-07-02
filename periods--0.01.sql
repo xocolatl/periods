@@ -753,13 +753,13 @@ BEGIN
     END IF;
 
     generated_always_trigger := array_to_string(ARRAY[table_name, 'system_time', 'generated', 'always'], '_');
-    EXECUTE format('CREATE TRIGGER %I BEFORE INSERT OR UPDATE ON %s FOR EACH ROW EXECUTE FUNCTION periods.generated_always_as_row_start_end()', generated_always_trigger, table_class);
+    EXECUTE format('CREATE TRIGGER %I BEFORE INSERT OR UPDATE ON %s FOR EACH ROW EXECUTE PROCEDURE periods.generated_always_as_row_start_end()', generated_always_trigger, table_class);
 
     write_history_trigger := array_to_string(ARRAY[table_name, 'system_time', 'write', 'history'], '_');
-    EXECUTE format('CREATE TRIGGER %I AFTER INSERT OR UPDATE OR DELETE ON %s FOR EACH ROW EXECUTE FUNCTION periods.write_history()', write_history_trigger, table_class);
+    EXECUTE format('CREATE TRIGGER %I AFTER INSERT OR UPDATE OR DELETE ON %s FOR EACH ROW EXECUTE PROCEDURE periods.write_history()', write_history_trigger, table_class);
 
     truncate_trigger := array_to_string(ARRAY[table_name, 'truncate'], '_');
-    EXECUTE format('CREATE TRIGGER %I AFTER TRUNCATE ON %s FOR EACH STATEMENT EXECUTE FUNCTION periods.truncate_system_versioning()', truncate_trigger, table_class);
+    EXECUTE format('CREATE TRIGGER %I AFTER TRUNCATE ON %s FOR EACH STATEMENT EXECUTE PROCEDURE periods.truncate_system_versioning()', truncate_trigger, table_class);
 
     INSERT INTO periods.periods (table_name, period_name, start_column_name, end_column_name, range_type, bounds_check_constraint, infinity_check_constraint, generated_always_trigger, write_history_trigger, truncate_trigger)
     VALUES (table_class, period_name, start_column_name, end_column_name, 'tstzrange', bounds_check_constraint, infinity_check_constraint, generated_always_trigger, write_history_trigger, truncate_trigger);
@@ -856,7 +856,7 @@ BEGIN
         view_name := r.table_name || '__for_portion_of_' || r.period_name;
         trigger_name := 'for_portion_of_' || r.period_name;
         EXECUTE format('CREATE VIEW %1$I.%2$I AS TABLE %1$I.%3$I', r.schema_name, view_name, r.table_name);
-        EXECUTE format('CREATE TRIGGER %I INSTEAD OF UPDATE ON %I.%I FOR EACH ROW EXECUTE FUNCTION periods.update_portion_of(%s, %I)'
+        EXECUTE format('CREATE TRIGGER %I INSTEAD OF UPDATE ON %I.%I FOR EACH ROW EXECUTE PROCEDURE periods.update_portion_of(%s, %I)'
             trigger_name, r.schema_name, r.table_name, r.period_name);
         INSERT INTO periods.for_portion_views (table_name, period_name, view_name, trigger_name)
             VALUES (format('%I.%I', r.schema_name, r.table_name), r.period_name, format('%I.%I', r.schema_name, view_name));
@@ -1362,16 +1362,16 @@ BEGIN
 
     /* Time to make the underlying triggers */
     fk_insert_name := periods._choose_name(ARRAY[key_name], 'fk_insert');
-    EXECUTE format('CREATE CONSTRAINT TRIGGER %I AFTER INSERT ON %s FROM %s DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION periods.fk_insert_check(%L)',
+    EXECUTE format('CREATE CONSTRAINT TRIGGER %I AFTER INSERT ON %s FROM %s DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE PROCEDURE periods.fk_insert_check(%L)',
         fk_insert_name, table_name, unique_row.table_name, key_name);
     fk_update_name := periods._choose_name(ARRAY[key_name], 'fk_update');
-    EXECUTE format('CREATE CONSTRAINT TRIGGER %I AFTER UPDATE ON %s FROM %s DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION periods.fk_update_check(%L)',
+    EXECUTE format('CREATE CONSTRAINT TRIGGER %I AFTER UPDATE ON %s FROM %s DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE PROCEDURE periods.fk_update_check(%L)',
         fk_update_name, table_name, unique_row.table_name, key_name);
     uk_update_name := periods._choose_name(ARRAY[key_name], 'uk_update');
-    EXECUTE format('CREATE CONSTRAINT TRIGGER %I AFTER UPDATE ON %s FROM %s%s FOR EACH ROW EXECUTE FUNCTION periods.uk_update_check(%L)',
+    EXECUTE format('CREATE CONSTRAINT TRIGGER %I AFTER UPDATE ON %s FROM %s%s FOR EACH ROW EXECUTE PROCEDURE periods.uk_update_check(%L)',
         uk_update_name, unique_row.table_name, table_name, upd_action, key_name);
     uk_delete_name := periods._choose_name(ARRAY[key_name], 'uk_delete');
-    EXECUTE format('CREATE CONSTRAINT TRIGGER %I AFTER DELETE ON %s FROM %s%s FOR EACH ROW EXECUTE FUNCTION periods.uk_delete_check(%L)',
+    EXECUTE format('CREATE CONSTRAINT TRIGGER %I AFTER DELETE ON %s FROM %s%s FOR EACH ROW EXECUTE PROCEDURE periods.uk_delete_check(%L)',
         uk_delete_name, unique_row.table_name, table_name, del_action, key_name);
 
     INSERT INTO periods.foreign_keys (key_name, table_name, column_names, period_name, unique_key, match_type, update_action, delete_action,
@@ -1990,4 +1990,4 @@ TODO:
 END;
 $function$;
 
-CREATE EVENT TRIGGER periods_health_check ON sql_drop EXECUTE FUNCTION periods.health_check();
+CREATE EVENT TRIGGER periods_health_check ON sql_drop EXECUTE PROCEDURE periods.health_check();
