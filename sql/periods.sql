@@ -1,5 +1,6 @@
 /* Install the extension */
-CREATE EXTENSION periods CASCADE;
+CREATE EXTENSION IF NOT EXISTS btree_gist;
+CREATE EXTENSION periods;
 
 /*
  * Test creating a table, dropping a column, and then dropping the whole thing;
@@ -44,9 +45,9 @@ SELECT periods.drop_system_time_period('sysver', drop_behavior => 'CASCADE', pur
 SELECT periods.add_system_time_period('sysver', 'endname', 'startname');
 SELECT periods.drop_system_time_period('sysver', drop_behavior => 'CASCADE', purge => true);
 SELECT periods.add_system_time_period('sysver');
-\d+ sysver
 DROP TABLE sysver;
 TABLE periods.periods;
+TABLE periods.system_time_periods;
 
 /* Basic SYSTEM VERSIONING */
 
@@ -116,7 +117,7 @@ SELECT periods.drop_system_versioning('sysver', drop_behavior => 'CASCADE', purg
 TABLE periods.system_versioning;
 DROP TABLE sysver;
 TABLE periods.periods;
-\d
+TABLE periods.system_time_periods;
 
 
 /* Clean up */

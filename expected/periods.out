@@ -1,6 +1,6 @@
 /* Install the extension */
-CREATE EXTENSION periods CASCADE;
-NOTICE:  installing required extension "btree_gist"
+CREATE EXTENSION IF NOT EXISTS btree_gist;
+CREATE EXTENSION periods;
 /*
  * Test creating a table, dropping a column, and then dropping the whole thing;
  * without any periods.
@@ -133,27 +133,15 @@ SELECT periods.add_system_time_period('sysver');
  t
 (1 row)
 
-\d+ sysver
-                                                               Table "public.sysver"
-      Column       |           Type           | Collation | Nullable |               Default                | Storage  | Stats target | Description 
--------------------+--------------------------+-----------+----------+--------------------------------------+----------+--------------+-------------
- val               | text                     |           |          |                                      | extended |              | 
- startname         | timestamp with time zone |           | not null | 'infinity'::timestamp with time zone | plain    |              | 
- system_time_end   | timestamp with time zone |           | not null | 'infinity'::timestamp with time zone | plain    |              | 
- system_time_start | timestamp with time zone |           | not null | transaction_timestamp()              | plain    |              | 
- endname           | timestamp with time zone |           | not null | transaction_timestamp()              | plain    |              | 
-Check constraints:
-    "sysver_system_time_check" CHECK (system_time_start < system_time_end)
-    "sysver_system_time_end_infinity_check" CHECK (system_time_end = 'infinity'::timestamp with time zone)
-Triggers:
-    sysver_system_time_generated_always BEFORE INSERT OR UPDATE ON sysver FOR EACH ROW EXECUTE PROCEDURE periods.generated_always_as_row_start_end()
-    sysver_system_time_write_history AFTER INSERT OR DELETE OR UPDATE ON sysver FOR EACH ROW EXECUTE PROCEDURE periods.write_history()
-    sysver_truncate AFTER TRUNCATE ON sysver FOR EACH STATEMENT EXECUTE PROCEDURE periods.truncate_system_versioning()
-
 DROP TABLE sysver;
 TABLE periods.periods;
  table_name | period_name | start_column_name | end_column_name | range_type | bounds_check_constraint 
 ------------+-------------+-------------------+-----------------+------------+-------------------------
+(0 rows)
+
+TABLE periods.system_time_periods;
+ table_name | period_name | infinity_check_constraint | generated_always_trigger | write_history_trigger | truncate_trigger 
+------------+-------------+---------------------------+--------------------------+-----------------------+------------------
 (0 rows)
 
 /* Basic SYSTEM VERSIONING */
@@ -343,10 +331,9 @@ TABLE periods.periods;
 ------------+-------------+-------------------+-----------------+------------+-------------------------
 (0 rows)
 
-\d
-      List of relations
- Schema | Name | Type | Owner 
---------+------+------+-------
+TABLE periods.system_time_periods;
+ table_name | period_name | infinity_check_constraint | generated_always_trigger | write_history_trigger | truncate_trigger 
+------------+-------------+---------------------------+--------------------------+-----------------------+------------------
 (0 rows)
 
 /* Clean up */

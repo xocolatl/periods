@@ -16,6 +16,10 @@ PG_MODULE_MAGIC;
 PG_FUNCTION_INFO_V1(generated_always_as_row_start_end);
 PG_FUNCTION_INFO_V1(write_history);
 
+/* Define some SQLSTATEs that might not exist */
+#if (PG_VERSION_NUM < 100000)
+#define ERRCODE_GENERATED_ALWAYS MAKE_SQLSTATE('4','2','8','C','9')
+#endif
 #define ERRCODE_INVALID_ROW_VERSION MAKE_SQLSTATE('2','2','0','1','H')
 
 void GetPeriodColumnNames(Relation rel, char *period_name, char **start_name, char **end_name);
@@ -183,7 +187,11 @@ generated_always_as_row_start_end(PG_FUNCTION_ARGS)
 	columns[1] = end_num;
 	values[1] = TimestampTzGetDatum(DT_NOEND);
 	nulls[1] = false;
+#if (PG_VERSION_NUM < 100000)
+	new_row = SPI_modifytuple(rel, new_row, 2, columns, values, nulls);
+#else
 	new_row = heap_modify_tuple_by_cols(new_row, new_tupdesc, 2, columns, values, nulls);
+#endif
 
 	return PointerGetDatum(new_row);
 }
