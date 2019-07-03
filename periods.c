@@ -2,6 +2,13 @@
 #include "fmgr.h"
 
 #include "access/htup_details.h"
+#include "access/heapam.h"
+#if (PG_VERSION_NUM < 120000)
+#define table_open(r, l)	heap_open(r, l)
+#define table_close(r, l)	heap_close(r, l)
+#else
+#include "access/table.h"
+#endif
 #include "access/xact.h"
 #include "catalog/pg_type.h"
 #include "commands/trigger.h"
@@ -343,7 +350,7 @@ write_history(PG_FUNCTION_ARGS)
 		bool	   *nulls;
 
 		/* Open the history table for inserting */
-		history_rel = heap_open(history_id, RowExclusiveLock);
+		history_rel = table_open(history_id, RowExclusiveLock);
 		history_tupdesc = RelationGetDescr(history_rel);
 
 		/* Build the new tuple for the history table */
@@ -363,7 +370,7 @@ write_history(PG_FUNCTION_ARGS)
 		simple_heap_insert(history_rel, history_tuple);
 
 		/* Keep the lock until end of transaction */
-		heap_close(history_rel, NoLock);
+		table_close(history_rel, NoLock);
 	}
 
 	return PointerGetDatum(NULL);
