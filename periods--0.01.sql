@@ -26,18 +26,27 @@ CREATE TABLE periods.periods (
     end_column_name name NOT NULL,
     range_type regtype NOT NULL,
     bounds_check_constraint name NOT NULL,
-    infinity_check_constraint name,
-    generated_always_trigger name,
-    write_history_trigger name,
-    truncate_trigger name,
 
     PRIMARY KEY (table_name, period_name),
 
-    CHECK (start_column_name <> end_column_name),
-    CHECK (period_name = 'system_time' AND num_nulls(infinity_check_constraint, generated_always_trigger, write_history_trigger, truncate_trigger) = 0
-            OR num_nonnulls(infinity_check_constraint, generated_always_trigger, write_history_trigger, truncate_trigger) = 0)
+    CHECK (start_column_name <> end_column_name)
 );
 SELECT pg_catalog.pg_extension_config_dump('periods.periods', '');
+
+CREATE TABLE periods.system_time_periods (
+    table_name regclass NOT NULL,
+    period_name name NOT NULL,
+    infinity_check_constraint name NOT NULL,
+    generated_always_trigger name NOT NULL,
+    write_history_trigger name NOT NULL,
+    truncate_trigger name NOT NULL,
+
+    PRIMARY KEY (table_name, period_name),
+    FOREIGN KEY (table_name, period_name) REFERENCES periods.periods,
+
+    CHECK (period_name = 'system_time')
+);
+SELECT pg_catalog.pg_extension_config_dump('periods.system_time_periods', '');
 
 COMMENT ON TABLE periods.periods IS 'The main catalog for periods.  All "DDL" operations for periods must first take an exclusive lock on this table.';
 
@@ -414,6 +423,7 @@ $function$
 #variable_conflict use_variable
 DECLARE
     period_row periods.periods;
+    system_time_period_row periods.system_time_periods;
     system_versioning_row periods.system_versioning;
     portion_view regclass;
     is_dropped boolean;
@@ -428,6 +438,12 @@ BEGIN
 
     /* Always serialize operations on our catalogs */
     PERFORM periods._serialize(table_name);
+
+    /*
+     * Has the table been dropped already?  This could happen if the period is
+     * being dropped by the health_check event trigger or through a DROP CASCADE.
+     */
+    is_dropped := NOT EXISTS (SELECT FROM pg_catalog.pg_class AS c WHERE c.oid = table_name);
 
     SELECT p.*
     INTO period_row
@@ -449,6 +465,18 @@ BEGIN
         WHERE c.oid = portion_view)
     THEN
         EXECUTE format('DROP VIEW %s %s', portion_view, drop_behavior);
+    END IF;
+
+    /* If this is a system_time period, get rid of the triggers */
+    DELETE FROM periods.system_time_periods AS stp
+    WHERE stp.table_name = table_name
+    RETURNING stp.* INTO system_time_period_row;
+
+    IF FOUND AND NOT is_dropped THEN
+        EXECUTE format('ALTER TABLE %s DROP CONSTRAINT %I', table_name, system_time_period_row.infinity_check_constraint);
+        EXECUTE format('DROP TRIGGER %I ON %s', system_time_period_row.generated_always_trigger, table_name);
+        EXECUTE format('DROP TRIGGER %I ON %s', system_time_period_row.write_history_trigger, table_name);
+        EXECUTE format('DROP TRIGGER %I ON %s', system_time_period_row.truncate_trigger, table_name);
     END IF;
 
     IF drop_behavior = 'RESTRICT' THEN
@@ -493,12 +521,6 @@ BEGIN
     WHERE (uk.table_name, uk.period_name) = (table_name, period_name);
 
     /*
-     * Has the table been dropped already?  This could happen if the period is
-     * being dropped by the health_check event trigger.
-     */
-    is_dropped := NOT EXISTS (SELECT FROM pg_catalog.pg_class AS c WHERE c.oid = table_name);
-
-    /*
      * Save ourselves the NOTICE if this table doesn't have SYSTEM
      * VERSIONING.
      *
@@ -510,15 +532,7 @@ BEGIN
         SELECT FROM periods.system_versioning AS sv
         WHERE (sv.table_name, sv.period_name) = (table_name, period_name))
     THEN
-        raise info 'dropping system_time period via drop_period';
         PERFORM periods.drop_system_versioning(table_name, drop_behavior, purge);
-    END IF;
-
-    IF NOT is_dropped AND purge THEN
-        EXECUTE format('ALTER TABLE %s DROP CONSTRAINT %I', table_name, period_row.infinity_check_constraint);
-        EXECUTE format('DROP TRIGGER %I ON %s', period_row.generated_always_trigger, table_name);
-        EXECUTE format('DROP TRIGGER %I ON %s', period_row.write_history_trigger, table_name);
-        EXECUTE format('DROP TRIGGER %I ON %s', period_row.truncate_trigger, table_name);
     END IF;
 
     IF NOT is_dropped AND purge THEN
@@ -761,8 +775,11 @@ BEGIN
     truncate_trigger := array_to_string(ARRAY[table_name, 'truncate'], '_');
     EXECUTE format('CREATE TRIGGER %I AFTER TRUNCATE ON %s FOR EACH STATEMENT EXECUTE PROCEDURE periods.truncate_system_versioning()', truncate_trigger, table_class);
 
-    INSERT INTO periods.periods (table_name, period_name, start_column_name, end_column_name, range_type, bounds_check_constraint, infinity_check_constraint, generated_always_trigger, write_history_trigger, truncate_trigger)
-    VALUES (table_class, period_name, start_column_name, end_column_name, 'tstzrange', bounds_check_constraint, infinity_check_constraint, generated_always_trigger, write_history_trigger, truncate_trigger);
+    INSERT INTO periods.periods (table_name, period_name, start_column_name, end_column_name, range_type, bounds_check_constraint)
+    VALUES (table_class, period_name, start_column_name, end_column_name, 'tstzrange', bounds_check_constraint);
+
+    INSERT INTO periods.system_time_periods (table_name, period_name, infinity_check_constraint, generated_always_trigger, write_history_trigger, truncate_trigger)
+    VALUES (table_class, period_name, infinity_check_constraint, generated_always_trigger, write_history_trigger, truncate_trigger);
 
     RETURN true;
 END;
@@ -773,7 +790,7 @@ CREATE FUNCTION periods.drop_system_time_period(table_name regclass, drop_behavi
  LANGUAGE sql
 AS
 $function$
-SELECT periods.drop_period($1, 'system_time', drop_behavior, purge);
+SELECT periods.drop_period(table_name, 'system_time', drop_behavior, purge);
 $function$;
 
 CREATE FUNCTION periods.generated_always_as_row_start_end()

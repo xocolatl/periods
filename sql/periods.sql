@@ -52,6 +52,7 @@ TABLE periods.periods;
 
 CREATE TABLE sysver (val text);
 SELECT periods.add_system_time_period('sysver');
+TABLE periods.system_time_periods;
 TABLE periods.system_versioning;
 SELECT periods.add_system_versioning('sysver');
 TABLE periods.system_versioning;
