@@ -9,6 +9,7 @@
 #include "executor/spi.h"
 #include "utils/elog.h"
 #include "utils/rel.h"
+#include "utils/memutils.h"
 #include "utils/timestamp.h"
 
 PG_MODULE_MAGIC;
@@ -33,6 +34,8 @@ GetPeriodColumnNames(Relation rel, char *period_name, char **start_name, char **
 	Datum			values[2];
 	SPITupleTable  *tuptable;
 	bool			is_null;
+	Datum			dat;
+	MemoryContext	mcxt = CurrentMemoryContext; /* The context outside of SPI */
 
 	const char *sql =
 		"SELECT p.start_column_name, p.end_column_name "
@@ -64,11 +67,19 @@ GetPeriodColumnNames(Relation rel, char *period_name, char **start_name, char **
 	/* There is a unique constraint so there shouldn't be more than 1 row */
 	Assert(SPI_processed == 1);
 
-	/* Get the names from the result tuple */
+	/*
+	 * Get the names from the result tuple.  We copy them into the original
+	 * context so they don't get wiped out by SPI_finish().
+	 */
 	tuptable = SPI_tuptable;
-	*start_name = NameStr(*(DatumGetName(SPI_getbinval(tuptable->vals[0], tuptable->tupdesc, 1, &is_null))));
-	*end_name = NameStr(*(DatumGetName(SPI_getbinval(tuptable->vals[0], tuptable->tupdesc, 2, &is_null))));
 
+	dat = SPI_getbinval(tuptable->vals[0], tuptable->tupdesc, 1, &is_null);
+	*start_name = MemoryContextStrdup(mcxt, NameStr(*(DatumGetName(dat))));
+
+	dat = SPI_getbinval(tuptable->vals[0], tuptable->tupdesc, 2, &is_null);
+	*end_name = MemoryContextStrdup(mcxt, NameStr(*(DatumGetName(dat))));
+
+	/* All done with SPI */
 	if (SPI_finish() != SPI_OK_FINISH)
 		elog(ERROR, "SPI_finish failed");
 }
