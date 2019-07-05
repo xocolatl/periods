@@ -1,6 +1,6 @@
 # A `periods` Extension
 
-*compatible 9.5--11*
+*compatible 9.5–11*
 
 This extension attemps to recreate the behavior defined in SQL:2016
 (originally SQL:2011) around periods and tables with `SYSTEM
