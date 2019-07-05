@@ -102,7 +102,7 @@ pointing at
 them.
 
 ``` sql
-SELECT periods.add_foreign_key('example2', '{ex_id}', 'validity', 'example_id_validity');
+SELECT periods.add_foreign_key('example2', 'ARRAY[ex_id]', 'validity', 'example_id_validity');
 ```
 
 In this example, we give the name of the unique key instead of listing
@@ -235,14 +235,14 @@ with `pg_depend` but here we have to handle it ourselves.
 Performance for the temporal queries should be already very similar to
 what we can expect from a native implementation in PostgreSQL.
 
-Unique indexes should also be as performant as a native implementation,
+Unique keys should also be as performant as a native implementation,
 except that two indexes are needed instead of just one. One of the goals
 of this extension is to fork btree to a new access method that handles
 the `WITHOUT OVERLAPS` and then patch that back into PostgreSQL when
 periods are added.
 
 Foreign key performance is a disgrace. They work, but for each change in
-either tables, the whole thing is rechecked. How ridiculous is that\!?
+either table, the whole thing is rechecked. How ridiculous is that\!?
 Checking the referential integrity, in addition to being optimized for
 just checking what’s needed, is planned to be re-implemented in C.
 
