@@ -1,7 +1,7 @@
 SELECT setting::integer < 90600 AS pre_96 FROM pg_settings WHERE name = 'server_version_num';
  pre_96 
 --------
- f
+ t
 (1 row)
 
 /* Install the extension */
@@ -120,39 +120,33 @@ SELECT periods.add_foreign_key('fk', ARRAY['uk_id'], 'q', 'uk_id_p', key_name =>
 -- INSERT
 INSERT INTO fk VALUES (0, 100, 0, 1); -- fail
 ERROR:  foreign key violated (no rows match)
-CONTEXT:  PL/pgSQL function periods.validate_foreign_key(name,jsonb) line 167 at RAISE
-SQL statement "SELECT periods.validate_foreign_key(TG_ARGV[0], jnew)"
+CONTEXT:  SQL statement "SELECT periods.validate_foreign_key(TG_ARGV[0], jnew)"
 PL/pgSQL function periods.fk_insert_check() line 20 at PERFORM
 INSERT INTO fk VALUES (0, 100, 0, 10); -- fail
 ERROR:  foreign key violated (period not complete)
-CONTEXT:  PL/pgSQL function periods.validate_foreign_key(name,jsonb) line 171 at RAISE
-SQL statement "SELECT periods.validate_foreign_key(TG_ARGV[0], jnew)"
+CONTEXT:  SQL statement "SELECT periods.validate_foreign_key(TG_ARGV[0], jnew)"
 PL/pgSQL function periods.fk_insert_check() line 20 at PERFORM
 INSERT INTO fk VALUES (0, 100, 1, 11); -- fail
 ERROR:  foreign key violated (period not complete)
-CONTEXT:  PL/pgSQL function periods.validate_foreign_key(name,jsonb) line 171 at RAISE
-SQL statement "SELECT periods.validate_foreign_key(TG_ARGV[0], jnew)"
+CONTEXT:  SQL statement "SELECT periods.validate_foreign_key(TG_ARGV[0], jnew)"
 PL/pgSQL function periods.fk_insert_check() line 20 at PERFORM
 INSERT INTO fk VALUES (1, 100, 1, 3); -- success
 INSERT INTO fk VALUES (2, 100, 1, 10); -- success
 -- UPDATE
 UPDATE fk SET e = 20 WHERE id = 1; -- fail
 ERROR:  foreign key violated (period not complete)
-CONTEXT:  PL/pgSQL function periods.validate_foreign_key(name,jsonb) line 171 at RAISE
-SQL statement "SELECT periods.validate_foreign_key(TG_ARGV[0], jnew)"
+CONTEXT:  SQL statement "SELECT periods.validate_foreign_key(TG_ARGV[0], jnew)"
 PL/pgSQL function periods.fk_update_check() line 19 at PERFORM
 UPDATE fk SET e = 6 WHERE id = 1; -- success
 UPDATE uk SET s = 2 WHERE (id, s, e) = (100, 1, 3); -- fail
 ERROR:  foreign key violated (period not complete)
-CONTEXT:  PL/pgSQL function periods.validate_foreign_key(name,jsonb) line 171 at RAISE
-SQL statement "SELECT periods.validate_foreign_key(TG_ARGV[0])"
+CONTEXT:  SQL statement "SELECT periods.validate_foreign_key(TG_ARGV[0])"
 PL/pgSQL function periods.uk_update_check() line 19 at PERFORM
 UPDATE uk SET s = 0 WHERE (id, s, e) = (100, 1, 3); -- success
 -- DELETE
 DELETE FROM uk WHERE (id, s, e) = (100, 3, 4); -- fail
 ERROR:  foreign key violated (period not complete)
-CONTEXT:  PL/pgSQL function periods.validate_foreign_key(name,jsonb) line 171 at RAISE
-SQL statement "SELECT periods.validate_foreign_key(TG_ARGV[0])"
+CONTEXT:  SQL statement "SELECT periods.validate_foreign_key(TG_ARGV[0])"
 PL/pgSQL function periods.uk_delete_check() line 19 at PERFORM
 DELETE FROM uk WHERE (id, s, e) = (200, 3, 5); -- success
 DROP TABLE fk;

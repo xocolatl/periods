@@ -1066,10 +1066,12 @@ BEGIN
      * Generate a name for the unique constraint.  We don't have to worry about
      * concurrency here because all period ddl commands lock the periods table.
      */
-    key_name := periods._choose_name(
-        ARRAY[(SELECT c.relname FROM pg_catalog.pg_class AS c WHERE c.oid = table_name),
-              column_names,
-              period_name]);
+    IF key_name IS NULL THEN
+        key_name := periods._choose_name(
+            ARRAY[(SELECT c.relname FROM pg_catalog.pg_class AS c WHERE c.oid = table_name)]
+                || column_names
+                || ARRAY[period_name]);
+    END IF;
     pass := 0;
     WHILE EXISTS (
        SELECT FROM periods.unique_keys AS uk
@@ -1356,10 +1358,12 @@ BEGIN
      * Generate a name for the foreign constraint.  We don't have to worry about
      * concurrency here because all period ddl commands lock the periods table.
      */
-    key_name := periods._choose_name(
-        ARRAY[(SELECT c.relname FROM pg_catalog.pg_class AS c WHERE c.oid = table_name),
-              column_names,
-              period_name]);
+    IF key_name IS NOT NULL THEN
+        key_name := periods._choose_name(
+            ARRAY[(SELECT c.relname FROM pg_catalog.pg_class AS c WHERE c.oid = table_name)]
+               || column_names
+               || ARRAY[period_name]);
+    END IF;
     pass := 0;
     WHILE EXISTS (
        SELECT FROM periods.foreign_keys AS fk
@@ -1515,6 +1519,7 @@ DECLARE
     ukrow record;
     fkrow record;
     agg record;
+    assigned boolean;
     row_clause text DEFAULT '';
 
     FKSQL_TEMPLATE CONSTANT text :=
@@ -1645,12 +1650,14 @@ BEGIN
                         foreign_key_info.uk_start_column_name);
 
         agg := NULL;
+        assigned := false;
         FOR ukrow IN
             EXECUTE uksql
             USING fkrow.key_values, fkrow.start_value, fkrow.end_value
         LOOP
-            IF agg IS NULL THEN
+            IF NOT assigned THEN
                 SELECT ukrow.start_value, ukrow.end_value INTO agg;
+                assigned := true;
                 EXIT WHEN agg.start_value > fkrow.start_value;
             ELSE
                 IF ukrow.start_value = agg.end_value THEN
@@ -1668,7 +1675,7 @@ BEGIN
             END IF;
         END LOOP;
 
-        IF agg IS NULL THEN
+        IF NOT assigned THEN
             RAISE EXCEPTION 'foreign key violated (no rows match)';
         END IF;
 
