@@ -241,10 +241,8 @@ of this extension is to fork btree to a new access method that handles
 the `WITHOUT OVERLAPS` and then patch that back into PostgreSQL when
 periods are added.
 
-Foreign key performance is a disgrace. They work, but for each change in
-either table, the whole thing is rechecked. How ridiculous is that\!?
-Checking the referential integrity, in addition to being optimized for
-just checking what’s needed, is planned to be re-implemented in C.
+Foreign key performance should mostly be reasonable, except perhaps when
+validating existing data. Some benchmarks would be helpful here.
 
 Performance for the DDL stuff isn’t all that important, but those
 functions will likely also be rewritten in C, if only to start being the

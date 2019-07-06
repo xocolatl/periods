@@ -1185,6 +1185,8 @@ CREATE FUNCTION periods.uk_update_check()
  LANGUAGE plpgsql
 AS $function$
 #variable_conflict use_variable
+DECLARE
+    jold jsonb;
 BEGIN
     /*
      * This function is called when a table referenced by foreign keys with
@@ -1194,14 +1196,16 @@ BEGIN
      * The first argument is the name of the foreign key in our custom
      * catalogs.
      *
-     * The only difference between NO ACTION and RESTRICT is when the check is
-     * done, so this function is used for both.
-     *
-     * Currently, the entire table is rechecked.  Obviously, this can be improved.
+     * If this is a NO ACTION constraint, we need to check if there is a new
+     * row that still satisfies the constraint, in which case there is no
+     * error.
      */
 
+    /* Use jsonb to look up values by parameterized names */
+    jold := row_to_json(OLD);
+
     /* Check the constraint */
-    PERFORM periods.validate_foreign_key(TG_ARGV[0]);
+    PERFORM periods.validate_foreign_key_old_row(TG_ARGV[0], jold, true);
 
     RETURN NULL;
 END;
@@ -1212,6 +1216,8 @@ CREATE FUNCTION periods.uk_delete_check()
  LANGUAGE plpgsql
 AS $function$
 #variable_conflict use_variable
+DECLARE
+    jold jsonb;
 BEGIN
     /*
      * This function is called when a table referenced by foreign keys with
@@ -1223,12 +1229,13 @@ BEGIN
      *
      * The only difference between NO ACTION and RESTRICT is when the check is
      * done, so this function is used for both.
-     *
-     * Currently, the entire table is rechecked.  Obviously, this can be improved.
      */
 
+    /* Use jsonb to look up values by parameterized names */
+    jold := row_to_json(OLD);
+
     /* Check the constraint */
-    PERFORM periods.validate_foreign_key(TG_ARGV[0]);
+    PERFORM periods.validate_foreign_key_old_row(TG_ARGV[0], jold, false);
 
     RETURN NULL;
 END;
@@ -1401,7 +1408,7 @@ BEGIN
             fk_insert_name, fk_update_name, uk_update_name, uk_delete_name);
 
     /* Validate the constraint on existing data */
-    PERFORM periods.validate_foreign_key(key_name);
+    PERFORM periods.validate_foreign_key_new_row(key_name, NULL);
 
     RETURN key_name;
 END;
@@ -1470,7 +1477,7 @@ BEGIN
     jnew := row_to_json(NEW);
 
     /* Check the constraint */
-    PERFORM periods.validate_foreign_key(TG_ARGV[0], jnew);
+    PERFORM periods.validate_foreign_key_new_row(TG_ARGV[0], jnew);
 
     RETURN NULL;
 END;
@@ -1497,7 +1504,7 @@ BEGIN
     jnew := row_to_json(NEW);
 
     /* Check the constraint */
-    PERFORM periods.validate_foreign_key(TG_ARGV[0], jnew);
+    PERFORM periods.validate_foreign_key_new_row(TG_ARGV[0], jnew);
 
     RETURN NULL;
 END;
@@ -1506,7 +1513,7 @@ $function$;
 /*
  * This function either returns true or raises an exception.
  */
-CREATE FUNCTION periods.validate_foreign_key(foreign_key_name name, row_data jsonb DEFAULT NULL)
+CREATE FUNCTION periods.validate_foreign_key_old_row(foreign_key_name name, row_data jsonb, is_update boolean)
  RETURNS boolean
  LANGUAGE plpgsql
 AS
@@ -1514,35 +1521,155 @@ $function$
 #variable_conflict use_variable
 DECLARE
     foreign_key_info record;
-    uksql text;
-    fksql text;
-    ukrow record;
-    fkrow record;
-    agg record;
-    assigned boolean;
-    row_clause text DEFAULT '';
+    column_name name;
+    has_nulls boolean;
+    uk_column_names text[];
+    uk_column_values text[];
+    fk_column_names text;
+    violation boolean;
+    still_matches boolean;
 
-    FKSQL_TEMPLATE CONSTANT text :=
-        'SELECT DISTINCT '
-        '    TREAT(row_to_json(ROW(%3$s)) AS jsonb) AS key_values, '
-        '    %4$I AS start_value, '
-        '    %5$I AS end_value '
-        'FROM %1$I.%2$I '
-        'WHERE NOT ((%3$s) IS NULL)'
-        '%6$s';
+    QSQL CONSTANT text := 
+        'SELECT EXISTS ( '
+        '    SELECT FROM %1$I.%2$I AS t '
+        '    WHERE ROW(%3$s) = ROW(%6$s) '
+        '      AND t.%4$I <= %7$L '
+        '      AND t.%5$I >= %8$L '
+        '%9$s'
+        ')';
 
-    UKSQL_TEMPLATE CONSTANT text :=
-        'SELECT '
-        '    %I AS start_value, '
-        '    %I AS end_value '
-        'FROM %I.%I '
-        'WHERE TREAT(row_to_json(ROW(%s)) AS jsonb) = $1 '
-        '  AND %I < $3 '
-        '  AND %I >= $2 '
-        'ORDER BY %I '
-        'FOR KEY SHARE';
 BEGIN
-    SELECT fn.nspname AS fk_schema_name,
+    SELECT fc.oid AS fk_table_oid,
+           fn.nspname AS fk_schema_name,
+           fc.relname AS fk_table_name,
+           fk.column_names AS fk_column_names,
+           fp.period_name AS fk_period_name,
+           fp.start_column_name AS fk_start_column_name,
+           fp.end_column_name AS fk_end_column_name,
+
+           uc.oid AS uk_table_oid,
+           un.nspname AS uk_schema_name,
+           uc.relname AS uk_table_name,
+           uk.column_names AS uk_column_names,
+           up.period_name AS uk_period_name,
+           up.start_column_name AS uk_start_column_name,
+           up.end_column_name AS uk_end_column_name,
+
+           fk.match_type,
+           fk.update_action,
+           fk.delete_action
+    INTO foreign_key_info
+    FROM periods.foreign_keys AS fk
+    JOIN periods.periods AS fp ON (fp.table_name, fp.period_name) = (fk.table_name, fk.period_name)
+    JOIN pg_class AS fc ON fc.oid = fk.table_name
+    JOIN pg_namespace AS fn ON fn.oid = fc.relnamespace
+    JOIN periods.unique_keys AS uk ON uk.key_name = fk.unique_key
+    JOIN periods.periods AS up ON (up.table_name, up.period_name) = (uk.table_name, uk.period_name)
+    JOIN pg_class AS uc ON uc.oid = uk.table_name
+    JOIN pg_namespace AS un ON un.oid = uc.relnamespace
+    WHERE fk.key_name = foreign_key_name;
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'foreign key "%" not found', foreign_key_name;
+    END IF;
+
+    FOREACH column_name IN ARRAY foreign_key_info.uk_column_names LOOP
+        IF row_data->>column_name IS NULL THEN
+            /*
+             * If the deleted row had nulls in the referenced columns then
+             * there was no possible referencing row (until we implement
+             * PARTIAL) so we can just stop here.
+             */
+            RETURN true;
+        END IF;
+        uk_column_names := uk_column_names || ('t.' || quote_ident(column_name));
+        uk_column_values := uk_column_values || quote_literal(row_data->>column_name);
+    END LOOP;
+
+    IF is_update AND foreign_key_info.update_action = 'NO ACTION' THEN
+        EXECUTE format(QSQL, foreign_key_info.uk_schema_name,
+                             foreign_key_info.uk_table_name,
+                             array_to_string(uk_column_names, ', '),
+                             foreign_key_info.uk_start_column_name,
+                             foreign_key_info.uk_end_column_name,
+                             array_to_string(uk_column_values, ', '),
+                             row_data->>foreign_key_info.uk_start_column_name,
+                             row_data->>foreign_key_info.uk_end_column_name,
+                             'FOR KEY SHARE')
+        INTO still_matches;
+
+        IF still_matches THEN
+            RETURN true;
+        END IF;
+    END IF;
+
+    SELECT string_agg('t.' || quote_ident(u.c), ', ' ORDER BY u.ordinality)
+    INTO fk_column_names
+    FROM unnest(foreign_key_info.fk_column_names) WITH ORDINALITY AS u (c, ordinality);
+
+    EXECUTE format(QSQL, foreign_key_info.fk_schema_name,
+                         foreign_key_info.fk_table_name,
+                         fk_column_names,
+                         foreign_key_info.fk_start_column_name,
+                         foreign_key_info.fk_end_column_name,
+                         array_to_string(uk_column_values, ', '),
+                         row_data->>foreign_key_info.uk_start_column_name,
+                         row_data->>foreign_key_info.uk_end_column_name,
+                         '')
+    INTO violation;
+
+    IF violation THEN
+        RAISE EXCEPTION 'update or delete on table "%" violates foreign key constraint "%" on table "%"',
+            foreign_key_info.uk_table_oid::regclass,
+            foreign_key_name,
+            foreign_key_info.fk_table_oid::regclass;
+    END IF;
+
+    RETURN true;
+END;
+$function$;
+
+/*
+ * This function either returns true or raises an exception.
+ */
+CREATE FUNCTION periods.validate_foreign_key_new_row(foreign_key_name name, row_data jsonb)
+ RETURNS boolean
+ LANGUAGE plpgsql
+AS
+$function$
+#variable_conflict use_variable
+DECLARE
+    foreign_key_info record;
+    row_clause text DEFAULT 'true';
+    violation boolean;
+
+	QSQL CONSTANT text :=
+        'SELECT EXISTS ( '
+        '    SELECT FROM %9$I.%10$I AS fk '
+        '    WHERE NOT EXISTS ( '
+        '        SELECT FROM (SELECT uk.uk_start_value, '
+        '                            uk.uk_end_value, '
+        '                            nullif(lag(uk.uk_end_value) OVER (ORDER BY uk.uk_start_value), uk.uk_start_value) AS x '
+        '                     FROM (SELECT uk.%5$I AS uk_start_value, '
+        '                                  uk.%7$I AS uk_end_value '
+        '                           FROM %1$I.%2$I AS uk '
+        '                           WHERE ROW(%3$s) = ROW(%11$s) '
+        '                             AND uk.%5$I <= fk.%15$I '
+        '                             AND uk.%7$I >= fk.%13$I '
+        '                           FOR KEY SHARE '
+        '                          ) AS uk '
+        '                    ) AS uk '
+        '        WHERE uk.uk_start_value < fk.%15$I '
+        '          AND uk.uk_end_value >= fk.%13$I '
+        '        HAVING min(uk.uk_start_value) <= fk.%13$I '
+        '           AND max(uk.uk_end_value) >= fk.%15$I '
+        '           AND array_agg(uk.x) FILTER (WHERE uk.x IS NOT NULL) IS NULL '
+        '    ) AND %17$s '
+        ')';
+
+BEGIN
+    SELECT fc.oid AS fk_table_oid,
+           fn.nspname AS fk_schema_name,
            fc.relname AS fk_table_name,
            fk.column_names AS fk_column_names,
            fp.period_name AS fk_period_name,
@@ -1589,7 +1716,7 @@ BEGIN
             FOREACH column_name IN ARRAY foreign_key_info.fk_column_names LOOP
                 has_nulls := has_nulls OR row_data->>column_name IS NULL;
                 all_nulls := all_nulls IS NOT false AND row_data->>column_name IS NULL;
-                cols := cols || quote_ident(column_name);
+                cols := cols || ('fk.' || quote_ident(column_name));
                 vals := vals || quote_literal(row_data->>column_name);
             END LOOP;
 
@@ -1615,74 +1742,38 @@ BEGIN
                 END CASE;
             END IF;
 
-            row_clause := format(' AND (%s) = (%s)', array_to_string(cols, ', '), array_to_string(vals, ', '));
+            row_clause := format(' (%s) = (%s)', array_to_string(cols, ', '), array_to_string(vals, ', '));
         END;
     END IF;
 
-    fksql := format(FKSQL_TEMPLATE,
-                    foreign_key_info.fk_schema_name,
-                    foreign_key_info.fk_table_name,
-                    array_to_string(foreign_key_info.fk_column_names, ', '),
-                    foreign_key_info.fk_start_column_name,
-                    foreign_key_info.fk_end_column_name,
-                    row_clause);
+    EXECUTE format(QSQL, foreign_key_info.uk_schema_name,
+                         foreign_key_info.uk_table_name,
+                         array_to_string(foreign_key_info.uk_column_names, ', '),
+                         NULL,
+                         foreign_key_info.uk_start_column_name,
+                         NULL,
+                         foreign_key_info.uk_end_column_name,
+                         NULL,
+                         foreign_key_info.fk_schema_name,
+                         foreign_key_info.fk_table_name,
+                         array_to_string(foreign_key_info.fk_column_names, ', '),
+                         NULL,
+                         foreign_key_info.fk_start_column_name,
+                         NULL,
+                         foreign_key_info.fk_end_column_name,
+                         NULL,
+                         row_clause)
+    INTO violation;
 
-    FOR fkrow IN EXECUTE fksql LOOP
-        IF jsonb_strip_nulls(fkrow.key_values) <> fkrow.key_values THEN -- the row has at least one null
-            CASE foreign_key_info.match_type
-                WHEN 'SIMPLE' THEN
-                    CONTINUE;
-                WHEN 'PARTIAL' THEN
-                    RAISE EXCEPTION 'partial not implemented';
-                WHEN 'FULL' THEN
-                    RAISE EXCEPTION 'foreign key violated (nulls in FULL)';
-            END CASE;
+    IF violation THEN
+        IF row_data IS NULL THEN
+            RAISE EXCEPTION 'foreign key violated by some row';
+        ELSE
+            RAISE EXCEPTION 'insert or update on table "%" violates foreign key constraint "%"',
+                foreign_key_info.fk_table_oid::regclass,
+                foreign_key_name;
         END IF;
-
-        uksql := format(UKSQL_TEMPLATE,
-                        foreign_key_info.uk_start_column_name,
-                        foreign_key_info.uk_end_column_name,
-                        foreign_key_info.uk_schema_name,
-                        foreign_key_info.uk_table_name,
-                        array_to_string(foreign_key_info.uk_column_names, ', '),
-                        foreign_key_info.uk_start_column_name,
-                        foreign_key_info.uk_end_column_name,
-                        foreign_key_info.uk_start_column_name);
-
-        agg := NULL;
-        assigned := false;
-        FOR ukrow IN
-            EXECUTE uksql
-            USING fkrow.key_values, fkrow.start_value, fkrow.end_value
-        LOOP
-            IF NOT assigned THEN
-                SELECT ukrow.start_value, ukrow.end_value INTO agg;
-                assigned := true;
-                EXIT WHEN agg.start_value > fkrow.start_value;
-            ELSE
-                IF ukrow.start_value = agg.end_value THEN
-                    agg.end_value := ukrow.end_value;
-
-                    /*
-                     * If this condition is true, we *should* be on the last
-                     * iteration anyway because the periods can't overlap
-                     */
-                    EXIT WHEN agg.end_value >= fkrow.end_value;
-                ELSE
-                    /* The periods aren't consecutive, exit the loop to report the error */
-                    EXIT;
-                END IF;
-            END IF;
-        END LOOP;
-
-        IF NOT assigned THEN
-            RAISE EXCEPTION 'foreign key violated (no rows match)';
-        END IF;
-
-        IF agg.start_value > fkrow.start_value OR agg.end_value < fkrow.end_value THEN
-            RAISE EXCEPTION 'foreign key violated (period not complete)';
-        END IF;
-    END LOOP;
+    END IF;
 
     RETURN true;
 END;
