@@ -1,5 +1,5 @@
 comment = 'Provide Standard SQL functionality for PERIODs and SYSTEM VERSIONING'
-default_version = 0.02
+default_version = 0.03
 module_pathname = '$libdir/periods'
 relocatable = false
 requires = 'btree_gist'
