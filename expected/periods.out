@@ -1,7 +1,10 @@
-SELECT setting::integer < 90600 AS pre_96 FROM pg_settings WHERE name = 'server_version_num';
- pre_96 
---------
- f
+SELECT setting::integer < 90600 AS pre_96,
+       setting::integer < 100000 AS pre_10,
+       setting::integer < 120000 AS pre_12
+FROM pg_settings WHERE name = 'server_version_num';
+ pre_96 | pre_10 | pre_12 
+--------+--------+--------
+ f      | f      | f
 (1 row)
 
 /* Install the extension */
@@ -158,7 +161,17 @@ DELETE FROM uk WHERE (id, s, e) = (200, 3, 5); -- success
 DROP TABLE fk;
 DROP TABLE uk;
 /* FOR PORTION tests */
-CREATE TABLE pricing (product text, min_quantity integer, max_quantity integer, price numeric);
+CREATE TABLE pricing (id1 bigserial,
+                      id2 bigint GENERATED ALWAYS AS IDENTITY,
+                      id3 bigint GENERATED ALWAYS AS (id1 + id2) STORED,
+                      product text, min_quantity integer, max_quantity integer, price numeric);
+CREATE TABLE pricing (id1 bigserial,
+                      id2 bigint GENERATED ALWAYS AS IDENTITY,
+                      product text, min_quantity integer, max_quantity integer, price numeric);
+ERROR:  relation "pricing" already exists
+CREATE TABLE pricing (id1 bigserial,
+                      product text, min_quantity integer, max_quantity integer, price numeric);
+ERROR:  relation "pricing" already exists
 SELECT periods.add_period('pricing', 'quantities', 'min_quantity', 'max_quantity');
  add_period 
 ------------
@@ -178,36 +191,36 @@ TABLE periods.for_portion_views;
 (1 row)
 
 /* Test UPDATE FOR PORTION */
-INSERT INTO pricing VALUES ('Trinket', 1, 20, 100);
+INSERT INTO pricing (product, min_quantity, max_quantity, price) VALUES ('Trinket', 1, 20, 100);
 TABLE pricing ORDER BY min_quantity;
- product | min_quantity | max_quantity | price 
----------+--------------+--------------+-------
- Trinket |            1 |           20 |   100
+ id1 | id2 | id3 | product | min_quantity | max_quantity | price 
+-----+-----+-----+---------+--------------+--------------+-------
+   1 |   1 |   2 | Trinket |            1 |           20 |   100
 (1 row)
 
 UPDATE pricing__for_portion_of_quantities SET min_quantity = 30, max_quantity = 50, price = 80;
 TABLE pricing ORDER BY min_quantity;
- product | min_quantity | max_quantity | price 
----------+--------------+--------------+-------
- Trinket |            1 |           20 |   100
+ id1 | id2 | id3 | product | min_quantity | max_quantity | price 
+-----+-----+-----+---------+--------------+--------------+-------
+   1 |   1 |   2 | Trinket |            1 |           20 |   100
 (1 row)
 
 UPDATE pricing__for_portion_of_quantities SET min_quantity = 10, max_quantity = 20, price = 80;
 TABLE pricing ORDER BY min_quantity;
- product | min_quantity | max_quantity | price 
----------+--------------+--------------+-------
- Trinket |            1 |           10 |   100
- Trinket |           10 |           20 |    80
+ id1 | id2 | id3 | product | min_quantity | max_quantity | price 
+-----+-----+-----+---------+--------------+--------------+-------
+   2 |   2 |   4 | Trinket |            1 |           10 |   100
+   1 |   1 |   2 | Trinket |           10 |           20 |    80
 (2 rows)
 
 UPDATE pricing__for_portion_of_quantities SET min_quantity = 5, max_quantity = 15, price = 90;
 TABLE pricing ORDER BY min_quantity;
- product | min_quantity | max_quantity | price 
----------+--------------+--------------+-------
- Trinket |            1 |            5 |   100
- Trinket |            5 |           10 |    90
- Trinket |           10 |           15 |    90
- Trinket |           15 |           20 |    80
+ id1 | id2 | id3 | product | min_quantity | max_quantity | price 
+-----+-----+-----+---------+--------------+--------------+-------
+   3 |   3 |   6 | Trinket |            1 |            5 |   100
+   2 |   2 |   4 | Trinket |            5 |           10 |    90
+   1 |   1 |   2 | Trinket |           10 |           15 |    90
+   4 |   4 |   8 | Trinket |           15 |           20 |    80
 (4 rows)
 
 -- If we drop the period (without CASCADE) then the FOR PORTION views should be

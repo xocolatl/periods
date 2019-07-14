@@ -132,6 +132,14 @@ an `INSTEAD OF` trigger to figure out what portion of the period you
 would like to modify, and issue the correct DML on the underlying table
 to do the job.
 
+``` sql
+UPDATE example__for_portion_of_validity
+SET ...,
+    start_date = ...,
+    end_date = ...
+WHERE ...;
+```
+
 We see no way to simulate deleting portions of periods, alas.
 
 ## Predicates

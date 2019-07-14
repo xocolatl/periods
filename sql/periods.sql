@@ -1,4 +1,7 @@
-SELECT setting::integer < 90600 AS pre_96 FROM pg_settings WHERE name = 'server_version_num';
+SELECT setting::integer < 90600 AS pre_96,
+       setting::integer < 100000 AS pre_10,
+       setting::integer < 120000 AS pre_12
+FROM pg_settings WHERE name = 'server_version_num';
 
 /* Install the extension */
 CREATE EXTENSION IF NOT EXISTS btree_gist;
@@ -70,12 +73,20 @@ DROP TABLE uk;
 
 /* FOR PORTION tests */
 
-CREATE TABLE pricing (product text, min_quantity integer, max_quantity integer, price numeric);
+CREATE TABLE pricing (id1 bigserial,
+                      id2 bigint GENERATED ALWAYS AS IDENTITY,
+                      id3 bigint GENERATED ALWAYS AS (id1 + id2) STORED,
+                      product text, min_quantity integer, max_quantity integer, price numeric);
+CREATE TABLE pricing (id1 bigserial,
+                      id2 bigint GENERATED ALWAYS AS IDENTITY,
+                      product text, min_quantity integer, max_quantity integer, price numeric);
+CREATE TABLE pricing (id1 bigserial,
+                      product text, min_quantity integer, max_quantity integer, price numeric);
 SELECT periods.add_period('pricing', 'quantities', 'min_quantity', 'max_quantity');
 SELECT periods.add_for_portion_view('pricing', 'quantities');
 TABLE periods.for_portion_views;
 /* Test UPDATE FOR PORTION */
-INSERT INTO pricing VALUES ('Trinket', 1, 20, 100);
+INSERT INTO pricing (product, min_quantity, max_quantity, price) VALUES ('Trinket', 1, 20, 100);
 TABLE pricing ORDER BY min_quantity;
 UPDATE pricing__for_portion_of_quantities SET min_quantity = 30, max_quantity = 50, price = 80;
 TABLE pricing ORDER BY min_quantity;

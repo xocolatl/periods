@@ -929,6 +929,8 @@ DECLARE
     period_name name;
     datatype text;
     test boolean;
+    generated_columns_sql text;
+    generated_columns text[];
 
     jnew jsonb;
     fromval jsonb;
@@ -944,9 +946,39 @@ DECLARE
     pre_assigned boolean;
     post_assigned boolean;
 
+    SERVER_VERSION CONSTANT integer := current_setting('server_version_num')::integer;
+
     TEST_SQL CONSTANT text :=
         'VALUES (CAST(%2$L AS %1$s) < CAST(%3$L AS %1$s) AND '
         '        CAST(%3$L AS %1$s) < CAST(%4$L AS %1$s))';
+
+    GENERATED_COLUMNS_SQL_PRE_10 CONSTANT text :=
+        'SELECT array_agg(a.attname) '
+        'FROM pg_attribute AS a '
+        'WHERE a.attrelid = $1 '
+        '  AND a.attnum > 0 '
+        '  AND NOT a.attisdropped '
+        '  AND pg_catalog.pg_get_serial_sequence(a.attrelid::regclass::text, a.attname) IS NOT NULL';
+
+    GENERATED_COLUMNS_SQL_PRE_12 CONSTANT text :=
+        'SELECT array_agg(a.attname) '
+        'FROM pg_attribute AS a '
+        'WHERE a.attrelid = $1 '
+        '  AND a.attnum > 0 '
+        '  AND NOT a.attisdropped '
+        '  AND (pg_catalog.pg_get_serial_sequence(a.attrelid::regclass::text, a.attname) IS NOT NULL '
+        '    OR a.attidentity <> '''')';
+
+    GENERATED_COLUMNS_SQL_CURRENT CONSTANT text :=
+        'SELECT array_agg(a.attname) '
+        'FROM pg_attribute AS a '
+        'WHERE a.attrelid = $1 '
+        '  AND a.attnum > 0 '
+        '  AND NOT a.attisdropped '
+        '  AND (pg_catalog.pg_get_serial_sequence(a.attrelid::regclass::text, a.attname) IS NOT NULL '
+        '    OR a.attidentity <> '''' '
+        '    OR a.attgenerated <> '''')';
+
 BEGIN
     /*
      * REFERENCES:
@@ -1009,7 +1041,35 @@ BEGIN
         /* Don't validate foreign keys until all this is done */
         SET CONSTRAINTS ALL DEFERRED;
 
+        /*
+         * Find and remove all generated columns from pre_row and post_row.
+         *
+         * We'll also be nice to legacy people and remove columns that own a
+         * sequence.  We do not, however, remove columns that default to
+         * nextval() without owning the underlying sequence.
+         */
+        IF SERVER_VERSION < 100000 THEN
+            generated_columns_sql := GENERATED_COLUMNS_SQL_PRE_10;
+        ELSIF SERVER_VERSION < 120000 THEN
+            generated_columns_sql := GENERATED_COLUMNS_SQL_PRE_12;
+        ELSE
+            generated_columns_sql := GENERATED_COLUMNS_SQL_CURRENT;
+        END IF;
+
+        EXECUTE generated_columns_sql
+        INTO generated_columns
+        USING table_name;
+
         IF pre_assigned THEN
+            IF SERVER_VERSION < 100000 THEN
+                SELECT jsonb_object_agg(e.key, e.value)
+                INTO pre_row
+                FROM jsonb_each(pre_row) AS e (key, value)
+                WHERE e.key <> ALL (generated_columns);
+            ELSE
+                pre_row := pre_row - generated_columns;
+            END IF;
+
             EXECUTE format('INSERT INTO %s (%s) VALUES (%s)',
                 table_name,
                 (SELECT string_agg(quote_ident(key), ', ' ORDER BY key) FROM jsonb_each_text(pre_row)),
@@ -1032,6 +1092,15 @@ BEGIN
                       );
 
         IF post_assigned THEN
+            IF SERVER_VERSION < 100000 THEN
+                SELECT jsonb_object_agg(e.key, e.value)
+                INTO post_row
+                FROM jsonb_each(post_row) AS e (key, value)
+                WHERE e.key <> ALL (generated_columns);
+            ELSE
+                post_row := post_row - generated_columns;
+            END IF;
+
             EXECUTE format('INSERT INTO %s (%s) VALUES (%s)',
                 table_name,
                 (SELECT string_agg(quote_ident(key), ', ' ORDER BY key) FROM jsonb_each_text(post_row)),
