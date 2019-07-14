@@ -971,7 +971,7 @@ BEGIN
     SELECT format_type(a.atttypid, a.atttypmod)
     INTO datatype
     FROM pg_attribute AS a
-    WHERE (a.attrelid, attname) = (table_name, period_row.start_column_name);
+    WHERE (a.attrelid, a.attname) = (table_name, period_row.start_column_name);
 
     jnew := row_to_json(NEW);
     fromval := jnew->period_row.start_column_name;
