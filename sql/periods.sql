@@ -86,12 +86,21 @@ SELECT periods.add_period('pricing', 'quantities', 'min_quantity', 'max_quantity
 SELECT periods.add_for_portion_view('pricing', 'quantities');
 TABLE periods.for_portion_views;
 /* Test UPDATE FOR PORTION */
-INSERT INTO pricing (product, min_quantity, max_quantity, price) VALUES ('Trinket', 1, 20, 100);
+INSERT INTO pricing (product, min_quantity, max_quantity, price) VALUES ('Trinket', 1, 20, 200);
 TABLE pricing ORDER BY min_quantity;
-UPDATE pricing__for_portion_of_quantities SET min_quantity = 30, max_quantity = 50, price = 80;
+-- UPDATE fully preceding
+UPDATE pricing__for_portion_of_quantities SET min_quantity = 0, max_quantity = 1, price = 0;
 TABLE pricing ORDER BY min_quantity;
+-- UPDATE fully succeeding
+UPDATE pricing__for_portion_of_quantities SET min_quantity = 30, max_quantity = 50, price = 0;
+TABLE pricing ORDER BY min_quantity;
+-- UPDATE fully surrounding
+UPDATE pricing__for_portion_of_quantities SET min_quantity = 0, max_quantity = 100, price = 100;
+TABLE pricing ORDER BY min_quantity;
+-- UPDATE portion
 UPDATE pricing__for_portion_of_quantities SET min_quantity = 10, max_quantity = 20, price = 80;
 TABLE pricing ORDER BY min_quantity;
+-- UPDATE portion of multiple rows
 UPDATE pricing__for_portion_of_quantities SET min_quantity = 5, max_quantity = 15, price = 90;
 TABLE pricing ORDER BY min_quantity;
 -- If we drop the period (without CASCADE) then the FOR PORTION views should be

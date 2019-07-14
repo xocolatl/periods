@@ -1060,52 +1060,53 @@ BEGIN
         INTO generated_columns
         USING table_name;
 
-        IF pre_assigned THEN
-            IF SERVER_VERSION < 100000 THEN
-                SELECT jsonb_object_agg(e.key, e.value)
-                INTO pre_row
-                FROM jsonb_each(pre_row) AS e (key, value)
-                WHERE e.key <> ALL (generated_columns);
-            ELSE
-                pre_row := pre_row - generated_columns;
-            END IF;
+        IF SERVER_VERSION < 100000 THEN
+            SELECT jsonb_object_agg(e.key, e.value)
+            INTO pre_row
+            FROM jsonb_each(pre_row) AS e (key, value)
+            WHERE e.key <> ALL (generated_columns);
 
-            EXECUTE format('INSERT INTO %s (%s) VALUES (%s)',
-                table_name,
-                (SELECT string_agg(quote_ident(key), ', ' ORDER BY key) FROM jsonb_each_text(pre_row)),
-                (SELECT string_agg(quote_literal(value), ', ' ORDER BY key) FROM jsonb_each_text(pre_row)));
+            SELECT jsonb_object_agg(e.key, e.value)
+            INTO post_row
+            FROM jsonb_each(post_row) AS e (key, value)
+            WHERE e.key <> ALL (generated_columns);
+        ELSE
+            pre_row := pre_row - generated_columns;
+            post_row := post_row - generated_columns;
         END IF;
+    END IF;
 
-        EXECUTE format('UPDATE %s SET %s %s',
-                       table_name,
-                       (SELECT string_agg(format('%I = %L', j.key, j.value), ', ')
-                        FROM (SELECT key, value FROM jsonb_each_text(new_row)
-                              EXCEPT ALL
-                              SELECT key, value FROM jsonb_each_text(jold)
-                             ) AS j
-                       ),
-                       (SELECT format('WHERE (%s) = (%s)',
-                                      string_agg(quote_ident(key), ', ' ORDER BY key),
-                                      string_agg(quote_literal(value), ', ' ORDER BY key))
-                        FROM jsonb_each_text(jold) AS j
-                       )
-                      );
+    IF pre_assigned THEN
+        EXECUTE format('INSERT INTO %s (%s) VALUES (%s)',
+            table_name,
+            (SELECT string_agg(quote_ident(key), ', ' ORDER BY key) FROM jsonb_each_text(pre_row)),
+            (SELECT string_agg(quote_literal(value), ', ' ORDER BY key) FROM jsonb_each_text(pre_row)));
+    END IF;
 
-        IF post_assigned THEN
-            IF SERVER_VERSION < 100000 THEN
-                SELECT jsonb_object_agg(e.key, e.value)
-                INTO post_row
-                FROM jsonb_each(post_row) AS e (key, value)
-                WHERE e.key <> ALL (generated_columns);
-            ELSE
-                post_row := post_row - generated_columns;
-            END IF;
+    EXECUTE format('UPDATE %s SET %s WHERE %s AND %I > %L AND %I < %L',
+                   table_name,
+                   (SELECT string_agg(format('%I = %L', j.key, j.value), ', ')
+                    FROM (SELECT key, value FROM jsonb_each_text(new_row)
+                          EXCEPT ALL
+                          SELECT key, value FROM jsonb_each_text(jold)
+                         ) AS j
+                   ),
+                   (SELECT format('(%s) = (%s)',
+                                  string_agg(quote_ident(key), ', ' ORDER BY key),
+                                  string_agg(quote_literal(value), ', ' ORDER BY key))
+                    FROM jsonb_each_text(jold) AS j
+                   ),
+                   period_row.end_column_name,
+                   fromval,
+                   period_row.start_column_name,
+                   toval
+                  );
 
-            EXECUTE format('INSERT INTO %s (%s) VALUES (%s)',
-                table_name,
-                (SELECT string_agg(quote_ident(key), ', ' ORDER BY key) FROM jsonb_each_text(post_row)),
-                (SELECT string_agg(quote_literal(value), ', ' ORDER BY key) FROM jsonb_each_text(post_row)));
-        END IF;
+    IF post_assigned THEN
+        EXECUTE format('INSERT INTO %s (%s) VALUES (%s)',
+            table_name,
+            (SELECT string_agg(quote_ident(key), ', ' ORDER BY key) FROM jsonb_each_text(post_row)),
+            (SELECT string_agg(quote_literal(value), ', ' ORDER BY key) FROM jsonb_each_text(post_row)));
     END IF;
 
     RETURN NEW;

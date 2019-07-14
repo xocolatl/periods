@@ -191,20 +191,38 @@ TABLE periods.for_portion_views;
 (1 row)
 
 /* Test UPDATE FOR PORTION */
-INSERT INTO pricing (product, min_quantity, max_quantity, price) VALUES ('Trinket', 1, 20, 100);
+INSERT INTO pricing (product, min_quantity, max_quantity, price) VALUES ('Trinket', 1, 20, 200);
+TABLE pricing ORDER BY min_quantity;
+ id1 | id2 | id3 | product | min_quantity | max_quantity | price 
+-----+-----+-----+---------+--------------+--------------+-------
+   1 |   1 |   2 | Trinket |            1 |           20 |   200
+(1 row)
+
+-- UPDATE fully preceding
+UPDATE pricing__for_portion_of_quantities SET min_quantity = 0, max_quantity = 1, price = 0;
+TABLE pricing ORDER BY min_quantity;
+ id1 | id2 | id3 | product | min_quantity | max_quantity | price 
+-----+-----+-----+---------+--------------+--------------+-------
+   1 |   1 |   2 | Trinket |            1 |           20 |   200
+(1 row)
+
+-- UPDATE fully succeeding
+UPDATE pricing__for_portion_of_quantities SET min_quantity = 30, max_quantity = 50, price = 0;
+TABLE pricing ORDER BY min_quantity;
+ id1 | id2 | id3 | product | min_quantity | max_quantity | price 
+-----+-----+-----+---------+--------------+--------------+-------
+   1 |   1 |   2 | Trinket |            1 |           20 |   200
+(1 row)
+
+-- UPDATE fully surrounding
+UPDATE pricing__for_portion_of_quantities SET min_quantity = 0, max_quantity = 100, price = 100;
 TABLE pricing ORDER BY min_quantity;
  id1 | id2 | id3 | product | min_quantity | max_quantity | price 
 -----+-----+-----+---------+--------------+--------------+-------
    1 |   1 |   2 | Trinket |            1 |           20 |   100
 (1 row)
 
-UPDATE pricing__for_portion_of_quantities SET min_quantity = 30, max_quantity = 50, price = 80;
-TABLE pricing ORDER BY min_quantity;
- id1 | id2 | id3 | product | min_quantity | max_quantity | price 
------+-----+-----+---------+--------------+--------------+-------
-   1 |   1 |   2 | Trinket |            1 |           20 |   100
-(1 row)
-
+-- UPDATE portion
 UPDATE pricing__for_portion_of_quantities SET min_quantity = 10, max_quantity = 20, price = 80;
 TABLE pricing ORDER BY min_quantity;
  id1 | id2 | id3 | product | min_quantity | max_quantity | price 
@@ -213,6 +231,7 @@ TABLE pricing ORDER BY min_quantity;
    1 |   1 |   2 | Trinket |           10 |           20 |    80
 (2 rows)
 
+-- UPDATE portion of multiple rows
 UPDATE pricing__for_portion_of_quantities SET min_quantity = 5, max_quantity = 15, price = 90;
 TABLE pricing ORDER BY min_quantity;
  id1 | id2 | id3 | product | min_quantity | max_quantity | price 
