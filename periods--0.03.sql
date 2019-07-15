@@ -567,6 +567,11 @@ DECLARE
     end_type oid;
     end_collation oid;
     end_notnull boolean;
+
+    DATE_OID CONSTANT integer := 1082;
+    TIMESTAMP_OID CONSTANT integer := 1114;
+    TIMESTAMPTZ_OID CONSTANT integer := 1184;
+    range_type regtype;
 BEGIN
     IF table_class IS NULL THEN
         RAISE EXCEPTION 'no table name specified';
@@ -679,9 +684,21 @@ BEGIN
     END IF;
 
     /* Verify compatibility of start/end columns */
-    IF start_type <> 'timestamp with time zone'::regtype OR end_type <> 'timestamp with time zone'::regtype THEN
-        RAISE EXCEPTION 'start and end columns must be of type "timestamp with time zone"';
+    IF start_type::regtype NOT IN ('date', 'timestamp without time zone', 'timestamp with time zone') THEN
+        RAISE EXCEPTION 'SYSTEM_TIME periods must be of type "date", "timestamp without time zone", or "timestamp with time zone"';
     END IF;
+    IF start_type <> end_type THEN
+        RAISE EXCEPTION 'start and end columns must be of same type';
+    END IF;
+
+    /* Get appropriate range type */
+    CASE start_type
+        WHEN DATE_OID THEN range_type := 'daterange';
+        WHEN TIMESTAMP_OID THEN range_type := 'tsrange';
+        WHEN TIMESTAMPTZ_OID THEN range_type := 'tstzrange';
+    ELSE
+        RAISE EXCEPTION 'unexpected data type: "%"', start_type::regtype;
+    END CASE;
 
     /* can't be part of a foreign key */
     IF EXISTS (
@@ -767,7 +784,7 @@ BEGIN
     EXECUTE format('CREATE TRIGGER %I AFTER TRUNCATE ON %s FOR EACH STATEMENT EXECUTE PROCEDURE periods.truncate_system_versioning()', truncate_trigger, table_class);
 
     INSERT INTO periods.periods (table_name, period_name, start_column_name, end_column_name, range_type, bounds_check_constraint)
-    VALUES (table_class, period_name, start_column_name, end_column_name, 'tstzrange', bounds_check_constraint);
+    VALUES (table_class, period_name, start_column_name, end_column_name, range_type, bounds_check_constraint);
 
     INSERT INTO periods.system_time_periods (table_name, period_name, infinity_check_constraint, generated_always_trigger, write_history_trigger, truncate_trigger)
     VALUES (table_class, period_name, infinity_check_constraint, generated_always_trigger, write_history_trigger, truncate_trigger);
