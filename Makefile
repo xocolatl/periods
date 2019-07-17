@@ -1,6 +1,6 @@
 MODULES = periods
 EXTENSION = periods
-DATA = periods--0.03.sql
+DATA = periods--0.04.sql
 REGRESS = periods
 DOCS = README.periods
 
