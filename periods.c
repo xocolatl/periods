@@ -14,9 +14,14 @@
 #include "commands/trigger.h"
 #include "datatype/timestamp.h"
 #include "executor/spi.h"
+#include "utils/date.h"
 #include "utils/elog.h"
-#include "utils/rel.h"
+#if (PG_VERSION_NUM < 100000)
+#else
+#include "utils/fmgrprotos.h"
+#endif
 #include "utils/memutils.h"
+#include "utils/rel.h"
 #include "utils/timestamp.h"
 
 PG_MODULE_MAGIC;
@@ -29,6 +34,21 @@ PG_FUNCTION_INFO_V1(write_history);
 #define ERRCODE_GENERATED_ALWAYS MAKE_SQLSTATE('4','2','8','C','9')
 #endif
 #define ERRCODE_INVALID_ROW_VERSION MAKE_SQLSTATE('2','2','0','1','H')
+
+/* We use these a lot, so make aliases for them */
+#if (PG_VERSION_NUM < 100000)
+#define TRANSACTION_TSTZ	TimestampTzGetDatum(GetCurrentTransactionStartTimestamp())
+#define TRANSACTION_TS		DirectFunctionCall1(timestamptz_timestamp, TRANSACTION_TSTZ)
+#define TRANSACTION_DATE	DirectFunctionCall1(timestamptz_date, TRANSACTION_TSTZ)
+#else
+#define TRANSACTION_TSTZ	TimestampTzGetDatum(GetCurrentTransactionStartTimestamp())
+#define TRANSACTION_TS		DirectFunctionCall1(timestamptz_timestamp, TRANSACTION_TSTZ)
+#define TRANSACTION_DATE	DateADTGetDatum(GetSQLCurrentDate())
+#endif
+
+#define INFINITE_TSTZ		TimestampTzGetDatum(DT_NOEND)
+#define INFINITE_TS			TimestampGetDatum(DT_NOEND)
+#define INFINITE_DATE		DateADTGetDatum(DATEVAL_NOEND)
 
 void GetPeriodColumnNames(Relation rel, char *period_name, char **start_name, char **end_name);
 Oid GetHistoryTable(Relation rel);
@@ -145,6 +165,76 @@ GetHistoryTable(Relation rel)
 	return result;
 }
 
+static Datum
+GetRowStart(Oid typeid)
+{
+	switch (typeid)
+	{
+		case TIMESTAMPTZOID:
+			return TRANSACTION_TSTZ;
+		case TIMESTAMPOID:
+			return TRANSACTION_TS;
+		case DATEOID:
+			return TRANSACTION_DATE;
+		default:
+			elog(ERROR, "unexpected type: %d", typeid);
+	}
+}
+
+static Datum
+GetRowEnd(Oid typeid)
+{
+	switch (typeid)
+	{
+		case TIMESTAMPTZOID:
+			return INFINITE_TSTZ;
+		case TIMESTAMPOID:
+			return INFINITE_TS;
+		case DATEOID:
+			return INFINITE_DATE;
+		default:
+			elog(ERROR, "unexpected type: %d", typeid);
+	}
+}
+
+static int
+CompareWithCurrentDatum(Oid typeid, Datum value)
+{
+	switch (typeid)
+	{
+		case TIMESTAMPTZOID:
+			return DirectFunctionCall2(timestamp_cmp, value, TRANSACTION_TSTZ);
+
+		case TIMESTAMPOID:
+			return DirectFunctionCall2(timestamp_cmp, value, TRANSACTION_TS);
+
+		case DATEOID:
+			return DirectFunctionCall2(date_cmp, value, TRANSACTION_DATE);
+
+		default:
+			elog(ERROR, "unexpected type: %d", typeid);
+	}
+}
+
+static int
+CompareWithInfiniteDatum(Oid typeid, Datum value)
+{
+	switch (typeid)
+	{
+		case TIMESTAMPTZOID:
+			return DirectFunctionCall2(timestamp_cmp, value, INFINITE_TSTZ);
+
+		case TIMESTAMPOID:
+			return DirectFunctionCall2(timestamp_cmp, value, INFINITE_TS);
+
+		case DATEOID:
+			return DirectFunctionCall2(date_cmp, value, INFINITE_DATE);
+
+		default:
+			elog(ERROR, "unexpected type: %d", typeid);
+	}
+}
+
 Datum
 generated_always_as_row_start_end(PG_FUNCTION_ARGS)
 {
@@ -158,6 +248,7 @@ generated_always_as_row_start_end(PG_FUNCTION_ARGS)
 	int				columns[2];
 	char		   *start_name, *end_name;
 	int16			start_num, end_num;
+	Oid				typeid;
 
 	/*
 	 * Make sure this is being called as an BEFORE ROW trigger.  Note:
@@ -195,15 +286,16 @@ generated_always_as_row_start_end(PG_FUNCTION_ARGS)
 
 	GetPeriodColumnNames(rel, "system_time", &start_name, &end_name);
 
-	/* Get the column numbers */
+	/* Get the column numbers and type */
 	start_num = SPI_fnumber(new_tupdesc, start_name);
 	end_num = SPI_fnumber(new_tupdesc, end_name);
+	typeid = SPI_gettypeid(new_tupdesc, start_num);
 
 	columns[0] = start_num;
-	values[0] = TimestampTzGetDatum(GetCurrentTransactionStartTimestamp());
+	values[0] = GetRowStart(typeid);
 	nulls[0] = false;
 	columns[1] = end_num;
-	values[1] = TimestampTzGetDatum(DT_NOEND);
+	values[1] = GetRowEnd(typeid);
 	nulls[1] = false;
 #if (PG_VERSION_NUM < 100000)
 	new_row = SPI_modifytuple(rel, new_row, 2, columns, values, nulls);
@@ -224,9 +316,10 @@ write_history(PG_FUNCTION_ARGS)
 	TupleDesc		tupledesc;
 	char		   *start_name, *end_name;
 	int16			start_num, end_num;
-	TimestampTz		start_val, end_val;
+	Oid				typeid;
 	bool			is_null;
 	Oid				history_id;
+	int				cmp;
 
 	/*
 	 * Make sure this is being called as an AFTER ROW trigger.  Note:
@@ -276,9 +369,10 @@ write_history(PG_FUNCTION_ARGS)
 
 	GetPeriodColumnNames(rel, "system_time", &start_name, &end_name);
 
-	/* Get the column numbers */
+	/* Get the column numbers and type */
 	start_num = SPI_fnumber(tupledesc, start_name);
 	end_num = SPI_fnumber(tupledesc, end_name);
+	typeid = SPI_gettypeid(tupledesc, start_num);
 
 	/*
 	 * Validate that the period columns haven't been modified.  This can happen
@@ -286,16 +380,16 @@ write_history(PG_FUNCTION_ARGS)
 	 */
 	if (!TRIGGER_FIRED_BY_DELETE(trigdata->tg_event))
 	{
-		start_val = DatumGetTimestampTz(SPI_getbinval(new_row, tupledesc, start_num, &is_null));
-		end_val = DatumGetTimestampTz(SPI_getbinval(new_row, tupledesc, end_num, &is_null));
+		Datum	start_datum = SPI_getbinval(new_row, tupledesc, start_num, &is_null);
+		Datum	end_datum = SPI_getbinval(new_row, tupledesc, end_num, &is_null);
 
-		if (start_val != GetCurrentTransactionStartTimestamp())
+		if (CompareWithCurrentDatum(typeid, start_datum) != 0)
 			ereport(ERROR,
 					(errcode(ERRCODE_GENERATED_ALWAYS),
 					 errmsg("cannot insert or update column \"%s\"", start_name),
 					 errdetail("Column \"%s\" is GENERATED ALWAYS AS ROW START", start_name)));
 
-		if (end_val != DT_NOEND)
+		if (CompareWithInfiniteDatum(typeid, end_datum) != 0)
 			ereport(ERROR,
 					(errcode(ERRCODE_GENERATED_ALWAYS),
 					 errmsg("cannot insert or update column \"%s\"", end_name),
@@ -309,14 +403,17 @@ write_history(PG_FUNCTION_ARGS)
 			return PointerGetDatum(NULL);
 	}
 
+	/* Compare the OLD row's start with the transaction start */
+	cmp = CompareWithCurrentDatum(typeid,
+			SPI_getbinval(old_row, tupledesc, start_num, &is_null));
+
 	/*
 	 * Don't do anything more if the start time is still the same.
 	 *
 	 * DELETE: SQL:2016 13.4 GR 15)a)iii)2)
 	 * UPDATE: SQL:2016 15.13 GR 9)a)iii)2)
 	 */
-	start_val = DatumGetTimestampTz(SPI_getbinval(old_row, tupledesc, start_num, &is_null));
-	if (start_val == GetCurrentTransactionStartTimestamp())
+	if (cmp == 0)
 		return PointerGetDatum(NULL);
 
 	/*
@@ -329,7 +426,7 @@ write_history(PG_FUNCTION_ARGS)
 	 * DELETE: SQL:2016 13.4 GR 15)a)iii)1)
 	 * UPDATE: SQL:2016 15.13 GR 9)a)iii)1)
 	 */
-	if (start_val > GetCurrentTransactionStartTimestamp())
+	if (cmp > 0)
 		ereport(ERROR,
 				(errcode(ERRCODE_INVALID_ROW_VERSION),
 				 errmsg("invalid row version"),
@@ -359,7 +456,7 @@ write_history(PG_FUNCTION_ARGS)
 
 		heap_deform_tuple(old_row, tupledesc, values, nulls);
 		/* Modify the historical ROW END on the fly */
-		values[end_num-1] = TimestampTzGetDatum(GetCurrentTransactionStartTimestamp());
+		values[end_num-1] = GetRowStart(typeid);
 		nulls[end_num-1] = false;
 		history_tuple = heap_form_tuple(history_tupdesc, values, nulls);
 

@@ -152,11 +152,17 @@ here. You can use the range type operators instead.
 ## `SYSTEM_TIME`
 
 If the period is named `SYSTEM_TIME`, then special rules apply. The type
-of the columns must be `timestamp with time zone` and they are not
-modifiable by the user. In the SQL standard, the start column is
-`GENERATED ALWAYS AS ROW START` and the end column is `GENERATED ALWAYS
-AS ROW END`. This extension uses triggers to set the start column to
-`transaction_timestamp()` and the end column is always `'infinity'`.
+of the columns must be `date`, `timestamp without time zone`, or
+`timestamp with time zone`; and they are not modifiable by the user. In
+the SQL standard, the start column is `GENERATED ALWAYS AS ROW START`
+and the end column is `GENERATED ALWAYS AS ROW END`. This extension uses
+triggers to set the start column to `transaction_timestamp()` and the
+end column is always `'infinity'`.
+
+***Note:*** It is generally unwise to use anything but `timestamp with
+time zone` because changes in the `TimeZone` configuration paramater or
+even just Daylight Savings Time changes can distort the history. Even
+when only using UTC, we recommend the `timestamp with time zone` type.
 
 ``` sql
 CREATE TABLE example (
