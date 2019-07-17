@@ -2,7 +2,7 @@
 
 *compatible 9.5–12*
 
-This extension attemps to recreate the behavior defined in SQL:2016
+This extension attempts to recreate the behavior defined in SQL:2016
 (originally SQL:2011) around periods and tables with `SYSTEM
 VERSIONING`. The idea is to figure out all the rules that PostgreSQL
 would like to adopt (there are some details missing in the standard) and
@@ -215,7 +215,7 @@ things like add partitioning.
 ## Temporal querying
 
 The SQL standard extends the `FROM` and `JOIN` clauses to allow
-speciying a point in time, or even a range of time (shall we say a
+specifying a point in time, or even a range of time (shall we say a
 *period* of time?) for which we want the data. This only applies to base
 tables and so this extension implements them through inlined functions.
 
