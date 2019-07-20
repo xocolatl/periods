@@ -198,6 +198,40 @@ BEGIN
 END;
 $function$;
 
+CREATE FUNCTION periods._choose_portion_view_name(table_name name, period_name name)
+ RETURNS name
+ IMMUTABLE
+ LANGUAGE plpgsql
+AS
+$function$
+#variable_conflict use_variable
+DECLARE
+    max_length integer;
+    result text;
+
+    NAMEDATALEN CONSTANT integer := 64;
+BEGIN
+    /*
+     * Reduce the table and period names until they fit in NAMEDATALEN.  This
+     * probably isn't very efficient but it's not on a hot code path so we
+     * don't care.
+     */
+
+    max_length := greatest(length(table_name), length(period_name));
+
+    LOOP
+        result := format('%s__for_portion_of_%s', table_name, period_name);
+        IF octet_length(result) <= NAMEDATALEN-1 THEN
+            RETURN result;
+        END IF;
+
+        max_length := max_length - 1;
+        table_name := left(table_name, max_length);
+        period_name := left(period_name, max_length);
+    END LOOP;
+END;
+$function$;
+
 
 CREATE FUNCTION periods.add_period(table_name regclass, period_name name, start_column_name name, end_column_name name, range_type regtype DEFAULT NULL)
  RETURNS boolean
@@ -882,8 +916,7 @@ BEGIN
                 SELECT FROM periods.for_portion_views AS _fpv
                 WHERE (_fpv.table_name, _fpv.period_name) = (p.table_name, p.period_name))
     LOOP
-        /* TODO: make sure these names fit NAMEDATALEN */
-        view_name := r.table_name || '__for_portion_of_' || r.period_name;
+        view_name := periods._choose_portion_view_name(r.table_name, r.period_name);
         trigger_name := 'for_portion_of_' || r.period_name;
         EXECUTE format('CREATE VIEW %1$I.%2$I AS TABLE %1$I.%3$I', r.schema_name, view_name, r.table_name);
         EXECUTE format('CREATE TRIGGER %I INSTEAD OF UPDATE ON %I.%I FOR EACH ROW EXECUTE PROCEDURE periods.update_portion_of()',
