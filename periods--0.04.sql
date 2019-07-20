@@ -1258,7 +1258,7 @@ BEGIN
         END IF;
 
         IF constraint_record.condeferrable THEN
-            /* SQL:2016 TODO */
+            /* SQL:2016 11.8 SR 5 */
             RAISE EXCEPTION 'constraint "%" must not be DEFERRABLE', unique_constraint;
         END IF;
 
@@ -1309,7 +1309,7 @@ BEGIN
         END IF;
 
         IF constraint_record.condeferrable THEN
-            /* SQL:2016 TODO */
+            /* SQL:2016 11.8 SR 5 */
             RAISE EXCEPTION 'constraint "%" must not be DEFERRABLE', exclude_constraint;
         END IF;
 
