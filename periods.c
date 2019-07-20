@@ -50,10 +50,7 @@ PG_FUNCTION_INFO_V1(write_history);
 #define INFINITE_TS			TimestampGetDatum(DT_NOEND)
 #define INFINITE_DATE		DateADTGetDatum(DATEVAL_NOEND)
 
-void GetPeriodColumnNames(Relation rel, char *period_name, char **start_name, char **end_name);
-Oid GetHistoryTable(Relation rel);
-
-void
+static void
 GetPeriodColumnNames(Relation rel, char *period_name, char **start_name, char **end_name)
 {
 	int				ret;
@@ -116,7 +113,7 @@ GetPeriodColumnNames(Relation rel, char *period_name, char **start_name, char **
  * period an error is raised.  If it doesn't have SYSTEM VERSIONING, then
  * InvalidOid is returned.
  */
-Oid
+static Oid
 GetHistoryTable(Relation rel)
 {
 	int		ret;
