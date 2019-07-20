@@ -1492,6 +1492,8 @@ DECLARE
     fk_update_name name;
     uk_update_name name;
     uk_delete_name name;
+    foreign_columns text;
+    unique_columns text;
 BEGIN
     IF table_name IS NULL THEN
         RAISE EXCEPTION 'no table name specified';
@@ -1611,16 +1613,20 @@ BEGIN
         del_action := ' DEFERRABLE INITIALLY DEFERRED';
     END IF;
 
+    /* Get the columns that require checking the constraint */
+    foreign_columns := array_to_string(column_names || period_row.start_column_name || period_row.end_column_name, ', ');
+    unique_columns := array_to_string(unique_row.column_names || ref_period_row.start_column_name || ref_period_row.end_column_name, ', ');
+
     /* Time to make the underlying triggers */
     fk_insert_name := periods._choose_name(ARRAY[key_name], 'fk_insert');
     EXECUTE format('CREATE CONSTRAINT TRIGGER %I AFTER INSERT ON %s FROM %s DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE PROCEDURE periods.fk_insert_check(%L)',
         fk_insert_name, table_name, unique_row.table_name, key_name);
     fk_update_name := periods._choose_name(ARRAY[key_name], 'fk_update');
-    EXECUTE format('CREATE CONSTRAINT TRIGGER %I AFTER UPDATE ON %s FROM %s DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE PROCEDURE periods.fk_update_check(%L)',
-        fk_update_name, table_name, unique_row.table_name, key_name);
+    EXECUTE format('CREATE CONSTRAINT TRIGGER %I AFTER UPDATE OF %s ON %s FROM %s DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE PROCEDURE periods.fk_update_check(%L)',
+        fk_update_name, foreign_columns, table_name, unique_row.table_name, key_name);
     uk_update_name := periods._choose_name(ARRAY[key_name], 'uk_update');
-    EXECUTE format('CREATE CONSTRAINT TRIGGER %I AFTER UPDATE ON %s FROM %s%s FOR EACH ROW EXECUTE PROCEDURE periods.uk_update_check(%L)',
-        uk_update_name, unique_row.table_name, table_name, upd_action, key_name);
+    EXECUTE format('CREATE CONSTRAINT TRIGGER %I AFTER UPDATE OF %s ON %s FROM %s%s FOR EACH ROW EXECUTE PROCEDURE periods.uk_update_check(%L)',
+        uk_update_name, unique_columns, unique_row.table_name, table_name, upd_action, key_name);
     uk_delete_name := periods._choose_name(ARRAY[key_name], 'uk_delete');
     EXECUTE format('CREATE CONSTRAINT TRIGGER %I AFTER DELETE ON %s FROM %s%s FOR EACH ROW EXECUTE PROCEDURE periods.uk_delete_check(%L)',
         uk_delete_name, unique_row.table_name, table_name, del_action, key_name);

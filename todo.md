@@ -9,7 +9,7 @@
 
 # Unique/Foreign Keys
 
--   Only trigger when the specified columns are touched
+-   Everything should be okay here?
 
 # `FOR PORTION OF`
 
