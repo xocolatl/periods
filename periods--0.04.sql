@@ -190,7 +190,7 @@ BEGIN
 
         max_length := max_length - 1;
         resizable := ARRAY (
-            SELECT left(t, -1)
+            SELECT left(t, max_length)
             FROM unnest(resizable) WITH ORDINALITY AS u (t, o)
             ORDER BY o
         );
