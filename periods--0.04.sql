@@ -169,6 +169,8 @@ $function$
 DECLARE
     max_length integer;
     result text;
+
+    NAMEDATALEN CONSTANT integer := 64;
 BEGIN
     /*
      * Reduce the resizable texts until they and the fixed text fit in
@@ -182,7 +184,7 @@ BEGIN
 
     LOOP
         result := format('%s%s', array_to_string(resizable, separator), separator || fixed);
-        IF octet_length(result) <= 63-extra THEN
+        IF octet_length(result) <= NAMEDATALEN-extra-1 THEN
             RETURN result;
         END IF;
 
