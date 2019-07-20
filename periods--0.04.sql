@@ -1191,8 +1191,6 @@ DECLARE
     exclude_index regclass;
     unique_sql text;
     exclude_sql text;
-    unique_exists boolean DEFAULT false;
-    exclude_exists boolean DEFAULT false;
 BEGIN
     IF table_name IS NULL THEN
         RAISE EXCEPTION 'no table name specified';
@@ -1280,10 +1278,7 @@ BEGIN
      */
     DECLARE
         withs text[];
-        len integer;
     BEGIN
-        len := array_length(column_attnums, 1);
-
         SELECT array_agg(format('%I WITH =', column_name) ORDER BY n.ordinality)
         INTO withs
         FROM unnest(column_names) WITH ORDINALITY AS n (column_name, ordinality);
