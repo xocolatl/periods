@@ -237,12 +237,14 @@ SELECT * FROM t__between_symmetric('...', '...');
 
 ## Completion
 
-There are many things that still need to be done for this extension.
-Adding everything should work, but dropping it again has a few… issues.
+This extension is pretty much feature complete, but there are still many
+aspects that need to be handled. For example, there is currently no
+management of access control.
 
-There should also be a proper handling of users modifying the period’s
-properties after we’ve done our tests. This would be generally trivial
-with `pg_depend` but here we have to handle it ourselves.
+There should also be proper handling of users modifying the period’s
+properties after we’ve done our tests. We handle this for DROP but not
+yet for ALTER. For example, a column belonging to a period might be
+renamed and then we’ll lose track of it.
 
 ## Performance
 

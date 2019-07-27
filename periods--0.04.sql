@@ -477,7 +477,8 @@ BEGIN
 
     /*
      * Has the table been dropped already?  This could happen if the period is
-     * being dropped by the health_check event trigger or through a DROP CASCADE.
+     * being dropped by the drop_protection event trigger or through a DROP
+     * CASCADE.
      */
     is_dropped := NOT EXISTS (SELECT FROM pg_catalog.pg_class AS c WHERE c.oid = table_name);
 
@@ -2295,7 +2296,10 @@ BEGIN
      *     SQL:2016 11.30
      */
 
-    /* We need to delete our row first so that the health check doesn't block us. */
+    /*
+     * We need to delete our row first so that the DROP protection doesn't
+     * block us.
+     */
     DELETE FROM periods.system_versioning AS sv
     WHERE sv.table_name = table_name
     RETURNING * INTO system_versioning_row;
@@ -2341,7 +2345,7 @@ END;
 $function$;
 
 
-CREATE FUNCTION periods.health_check()
+CREATE FUNCTION periods.drop_protection()
  RETURNS event_trigger
  LANGUAGE plpgsql
 AS
@@ -2352,14 +2356,24 @@ DECLARE
     table_name regclass;
     period_name name;
 BEGIN
-    /* TODO: Lots and lots of stuff missing here */
+    /*
+     * This function is called after the fact, so we have to just look to see
+     * if anything is missing in the catalogs if we just store the name and not
+     * a reg* type.
+     */
+
+    ---
+    --- periods
+    ---
 
     /* If one of our tables is being dropped, remove references to it */
     FOR table_name, period_name IN
         SELECT p.table_name, p.period_name
         FROM periods.periods AS p
-        JOIN pg_catalog.pg_event_trigger_dropped_objects() AS dobj ON dobj.objid = p.table_name
+        JOIN pg_catalog.pg_event_trigger_dropped_objects() WITH ORDINALITY AS dobj
+                ON dobj.objid = p.table_name
         WHERE dobj.object_type = 'table'
+        ORDER BY dobj.ordinality
     LOOP
         PERFORM periods.drop_period(table_name, period_name, 'CASCADE', true);
     END LOOP;
@@ -2368,16 +2382,234 @@ BEGIN
      * If a column belonging to one of our periods is dropped, we need to reject that.
      * SQL:2016 11.23 SR 6
      */
-    FOR r in
+    FOR r IN
         SELECT dobj.object_identity, p.period_name
         FROM periods.periods AS p
         JOIN pg_attribute AS sa ON (sa.attrelid, sa.attname) = (p.table_name, p.start_column_name)
         JOIN pg_attribute AS ea ON (ea.attrelid, ea.attname) = (p.table_name, p.end_column_name)
-        JOIN pg_catalog.pg_event_trigger_dropped_objects() AS dobj ON dobj.objid = p.table_name AND dobj.objsubid IN (sa.attnum, ea.attnum)
+        JOIN pg_catalog.pg_event_trigger_dropped_objects() WITH ORDINALITY AS dobj
+                ON dobj.objid = p.table_name AND dobj.objsubid IN (sa.attnum, ea.attnum)
         WHERE dobj.object_type = 'table column'
-        ORDER BY dobj.original DESC
+        ORDER BY dobj.ordinality
     LOOP
-        RAISE EXCEPTION 'cannot drop column "%" because it is part of the period "%"', r.object_identity, r.period_name;
+        RAISE EXCEPTION 'cannot drop column "%" because it is part of the period "%"',
+            r.object_identity, r.period_name;
+    END LOOP;
+
+    /* Also reject dropping the rangetype */
+    FOR r IN
+        SELECT dobj.object_identity, p.table_name, p.period_name
+        FROM periods.periods AS p
+        JOIN pg_catalog.pg_event_trigger_dropped_objects() WITH ORDINALITY AS dobj
+                ON dobj.objid = p.range_type
+        ORDER BY dobj.ordinality
+    LOOP
+        RAISE EXCEPTION 'cannot drop rangetype "%" because it is used in period "%" on table "%"',
+            r.object_identity, r.period_name, r.table_name;
+    END LOOP;
+
+    ---
+    --- system_time_periods
+    ---
+
+    /* Complain if the infinity CHECK constraint is missing. */
+    FOR r IN
+        SELECT p.table_name, p.infinity_check_constraint
+        FROM periods.system_time_periods AS p
+        WHERE NOT EXISTS (
+            SELECT FROM pg_catalog.pg_constraint AS c
+            WHERE (c.conrelid, c.conname) = (p.table_name, p.infinity_check_constraint))
+    LOOP
+        RAISE EXCEPTION 'cannot drop constraint "%" on table "%" because it is used in SYSTEM_TIME period',
+            r.infinity_check_constraint, r.table_name;
+    END LOOP;
+
+    /* Complain if the GENERATED ALWAYS AS ROW START/END trigger is missing. */
+    FOR r IN
+        SELECT p.table_name, p.generated_always_trigger
+        FROM periods.system_time_periods AS p
+        WHERE NOT EXISTS (
+            SELECT FROM pg_catalog.pg_trigger AS t
+            WHERE (t.tgrelid, t.tgname) = (p.table_name, p.generated_always_trigger))
+    LOOP
+        RAISE EXCEPTION 'cannot drop trigger "%" on table "%" because it is used in SYSTEM_TIME period',
+            r.generated_always_trigger, r.table_name;
+    END LOOP;
+
+    /* Complain if the write_history trigger is missing. */
+    FOR r IN
+        SELECT p.table_name, p.write_history_trigger
+        FROM periods.system_time_periods AS p
+        WHERE NOT EXISTS (
+            SELECT FROM pg_catalog.pg_trigger AS t
+            WHERE (t.tgrelid, t.tgname) = (p.table_name, p.write_history_trigger))
+    LOOP
+        RAISE EXCEPTION 'cannot drop trigger "%" on table "%" because it is used in SYSTEM_TIME period',
+            r.write_history_trigger, r.table_name;
+    END LOOP;
+
+    /* Complain if the TRUNCATE trigger is missing. */
+    FOR r IN
+        SELECT p.table_name, p.truncate_trigger
+        FROM periods.system_time_periods AS p
+        WHERE NOT EXISTS (
+            SELECT FROM pg_catalog.pg_trigger AS t
+            WHERE (t.tgrelid, t.tgname) = (p.table_name, p.truncate_trigger))
+    LOOP
+        RAISE EXCEPTION 'cannot drop trigger "%" on table "%" because it is used in SYSTEM_TIME period',
+            r.truncate_trigger, r.table_name;
+    END LOOP;
+
+    ---
+    --- for_portion_views
+    ---
+
+    /* Reject dropping the FOR PORTION OF view. */
+    FOR r IN
+        SELECT dobj.object_identity
+        FROM periods.for_portion_views AS fpv
+        JOIN pg_catalog.pg_event_trigger_dropped_objects() WITH ORDINALITY AS dobj
+                ON dobj.objid = fpv.view_name
+        WHERE dobj.object_type = 'view'
+        ORDER BY dobj.ordinality
+    LOOP
+        RAISE EXCEPTION 'cannot drop view "%", call "periods.drop_for_portion_view()" instead',
+            r.object_identity;
+    END LOOP;
+
+    /* Complain if the FOR PORTION OF trigger is missing. */
+    FOR r IN
+        SELECT fpv.table_name, fpv.period_name, fpv.trigger_name
+        FROM periods.for_portion_views AS fpv
+        WHERE NOT EXISTS (
+            SELECT FROM pg_catalog.pg_trigger AS t
+            WHERE (t.tgrelid, t.tgname) = (fpv.table_name, fpv.trigger_name))
+    LOOP
+        RAISE EXCEPTION 'cannot drop trigger "%" on table "%" because it is used in FOR PORTION OF view for period "%"',
+            r.trigger_name, r.table_name, r.period_name;
+    END LOOP;
+
+    ---
+    --- unique_keys
+    ---
+
+    /*
+     * We don't need to protect the individual columns as long as we protect
+     * the indexes.  PostgreSQL will make sure they stick around.
+     */
+
+    /* Complain if the indexes implementing our unique indexes are missing. */
+    FOR r IN
+        SELECT uk.key_name, uk.table_name, uk.unique_constraint
+        FROM periods.unique_keys AS uk
+        WHERE NOT EXISTS (
+            SELECT FROM pg_catalog.pg_constraint AS c
+            WHERE (c.conrelid, c.conname) = (uk.table_name, uk.unique_constraint))
+    LOOP
+        RAISE EXCEPTION 'cannot drop constraint "%" on table "%" because it is used in period unique key "%"',
+            r.unique_constraint, r.table_name, r.key_name;
+    END LOOP;
+
+    FOR r IN
+        SELECT uk.key_name, uk.table_name, uk.exclude_constraint
+        FROM periods.unique_keys AS uk
+        WHERE NOT EXISTS (
+            SELECT FROM pg_catalog.pg_constraint AS c
+            WHERE (c.conrelid, c.conname) = (uk.table_name, uk.exclude_constraint))
+    LOOP
+        RAISE EXCEPTION 'cannot drop constraint "%" on table "%" because it is used in period unique key "%"',
+            r.exclude_constraint, r.table_name, r.key_name;
+    END LOOP;
+
+    ---
+    --- foreign_keys
+    ---
+
+    /* Complain if any of the triggers are missing */
+    FOR r IN
+        SELECT fk.key_name, fk.table_name, fk.fk_insert_trigger
+        FROM periods.foreign_keys AS fk
+        WHERE NOT EXISTS (
+            SELECT FROM pg_catalog.pg_trigger AS t
+            WHERE (t.tgrelid, t.tgname) = (fk.table_name, fk.fk_insert_trigger))
+    LOOP
+        RAISE EXCEPTION 'cannot drop trigger "%" on table "%" because it is used in period foreign key "%"',
+            r.fk_insert_trigger, r.table_name, r.key_name;
+    END LOOP;
+
+    FOR r IN
+        SELECT fk.key_name, fk.table_name, fk.fk_update_trigger
+        FROM periods.foreign_keys AS fk
+        WHERE NOT EXISTS (
+            SELECT FROM pg_catalog.pg_trigger AS t
+            WHERE (t.tgrelid, t.tgname) = (fk.table_name, fk.fk_update_trigger))
+    LOOP
+        RAISE EXCEPTION 'cannot drop trigger "%" on table "%" because it is used in period foreign key "%"',
+            r.fk_update_trigger, r.table_name, r.key_name;
+    END LOOP;
+
+    FOR r IN
+        SELECT fk.key_name, uk.table_name, fk.uk_update_trigger
+        FROM periods.foreign_keys AS fk
+        JOIN periods.unique_keys AS uk ON uk.key_name = fk.unique_key
+        WHERE NOT EXISTS (
+            SELECT FROM pg_catalog.pg_trigger AS t
+            WHERE (t.tgrelid, t.tgname) = (uk.table_name, fk.uk_update_trigger))
+    LOOP
+        RAISE EXCEPTION 'cannot drop trigger "%" on table "%" because it is used in period foreign key "%"',
+            r.uk_update_trigger, r.table_name, r.key_name;
+    END LOOP;
+
+    FOR r IN
+        SELECT fk.key_name, uk.table_name, fk.uk_delete_trigger
+        FROM periods.foreign_keys AS fk
+        JOIN periods.unique_keys AS uk ON uk.key_name = fk.unique_key
+        WHERE NOT EXISTS (
+            SELECT FROM pg_catalog.pg_trigger AS t
+            WHERE (t.tgrelid, t.tgname) = (uk.table_name, fk.uk_delete_trigger))
+    LOOP
+        RAISE EXCEPTION 'cannot drop trigger "%" on table "%" because it is used in period foreign key "%"',
+            r.uk_delete_trigger, r.table_name, r.key_name;
+    END LOOP;
+
+    ---
+    --- system_versioning
+    ---
+
+    FOR r IN
+        SELECT dobj.object_identity, sv.table_name
+        FROM periods.system_versioning AS sv
+        JOIN pg_catalog.pg_event_trigger_dropped_objects() WITH ORDINALITY AS dobj
+                ON dobj.objid = sv.history_table_name
+        WHERE dobj.object_type = 'table'
+        ORDER BY dobj.ordinality
+    LOOP
+        RAISE EXCEPTION 'cannot drop table "%" because it is used in SYSTEM VERSIONING for table "%"',
+            r.object_identity, r.table_name;
+    END LOOP;
+
+    FOR r IN
+        SELECT dobj.object_identity, sv.table_name
+        FROM periods.system_versioning AS sv
+        JOIN pg_catalog.pg_event_trigger_dropped_objects() WITH ORDINALITY AS dobj
+                ON dobj.objid = sv.view_name
+        WHERE dobj.object_type = 'view'
+        ORDER BY dobj.ordinality
+    LOOP
+        RAISE EXCEPTION 'cannot drop view "%" because it is used in SYSTEM VERSIONING for table "%"',
+            r.object_identity, r.table_name;
+    END LOOP;
+
+    FOR r IN
+        SELECT dobj.object_identity, sv.table_name
+        FROM periods.system_versioning AS sv
+        JOIN pg_catalog.pg_event_trigger_dropped_objects() WITH ORDINALITY AS dobj
+                ON dobj.objid IN (sv.func_as_of, sv.func_between, sv.func_between_symmetric, sv.func_from_to)
+        WHERE dobj.object_type = 'function'
+        ORDER BY dobj.ordinality
+    LOOP
+        RAISE EXCEPTION 'cannot drop function "%" because it is used in SYSTEM VERSIONING for table "%"',
+            r.object_identity, r.table_name;
     END LOOP;
 
 /*
@@ -2390,4 +2622,4 @@ TODO:
 END;
 $function$;
 
-CREATE EVENT TRIGGER periods_health_check ON sql_drop EXECUTE PROCEDURE periods.health_check();
+CREATE EVENT TRIGGER periods_drop_protection ON sql_drop EXECUTE PROCEDURE periods.drop_protection();

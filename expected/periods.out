@@ -618,5 +618,157 @@ TABLE periods.system_time_periods;
 ------------+-------------+---------------------------+--------------------------+-----------------------+------------------
 (0 rows)
 
+/* DROP protection */
+CREATE TYPE integerrange AS RANGE (SUBTYPE = integer);
+CREATE TABLE dp (
+    id bigint,
+    s integer,
+    e integer
+);
+/* periods */
+SELECT periods.add_period('dp', 'p', 's', 'e', 'integerrange');
+ add_period 
+------------
+ t
+(1 row)
+
+DROP TYPE integerrange;
+ERROR:  cannot drop rangetype "public.integerrange" because it is used in period "p" on table "dp"
+CONTEXT:  PL/pgSQL function periods.drop_protection() line 56 at RAISE
+/* system_time_periods */
+SELECT periods.add_system_time_period('dp');
+ add_system_time_period 
+------------------------
+ t
+(1 row)
+
+ALTER TABLE dp DROP CONSTRAINT dp_system_time_end_infinity_check; -- fails
+ERROR:  cannot drop constraint "dp_system_time_end_infinity_check" on table "dp" because it is used in SYSTEM_TIME period
+CONTEXT:  PL/pgSQL function periods.drop_protection() line 72 at RAISE
+DROP TRIGGER dp_system_time_generated_always ON dp; -- fails
+ERROR:  cannot drop trigger "dp_system_time_generated_always" on table "dp" because it is used in SYSTEM_TIME period
+CONTEXT:  PL/pgSQL function periods.drop_protection() line 84 at RAISE
+DROP TRIGGER dp_system_time_write_history ON dp; -- fails
+ERROR:  cannot drop trigger "dp_system_time_write_history" on table "dp" because it is used in SYSTEM_TIME period
+CONTEXT:  PL/pgSQL function periods.drop_protection() line 96 at RAISE
+DROP TRIGGER dp_truncate ON dp; -- fails
+ERROR:  cannot drop trigger "dp_truncate" on table "dp" because it is used in SYSTEM_TIME period
+CONTEXT:  PL/pgSQL function periods.drop_protection() line 108 at RAISE
+/* for_portion_views */
+SELECT periods.add_for_portion_view('dp', 'p');
+ add_for_portion_view 
+----------------------
+ t
+(1 row)
+
+DROP VIEW dp__for_portion_of_p;
+ERROR:  cannot drop view "public.dp__for_portion_of_p", call "periods.drop_for_portion_view()" instead
+CONTEXT:  PL/pgSQL function periods.drop_protection() line 125 at RAISE
+DROP TRIGGER for_portion_of_p ON dp__for_portion_of_p;
+ERROR:  cannot drop trigger "for_portion_of_p" on table "dp" because it is used in FOR PORTION OF view for period "p"
+CONTEXT:  PL/pgSQL function periods.drop_protection() line 137 at RAISE
+SELECT periods.drop_for_portion_view('dp', 'p');
+ drop_for_portion_view 
+-----------------------
+ t
+(1 row)
+
+/* unique_keys */
+ALTER TABLE dp
+    ADD CONSTRAINT u UNIQUE (id, s, e),
+    ADD CONSTRAINT x EXCLUDE USING gist (id WITH =, integerrange(s, e, '[)') WITH &&);
+SELECT periods.add_unique_key('dp', ARRAY['id'], 'p', 'k', 'u', 'x');
+ add_unique_key 
+----------------
+ t
+(1 row)
+
+ALTER TABLE dp DROP CONSTRAINT u; -- fails
+ERROR:  cannot drop constraint "u" on table "dp" because it is used in period unique key "k"
+CONTEXT:  PL/pgSQL function periods.drop_protection() line 158 at RAISE
+ALTER TABLE dp DROP CONSTRAINT x; -- fails
+ERROR:  cannot drop constraint "x" on table "dp" because it is used in period unique key "k"
+CONTEXT:  PL/pgSQL function periods.drop_protection() line 169 at RAISE
+ALTER TABLE dp DROP CONSTRAINT dp_p_check; -- fails
+/* foreign_keys */
+CREATE TABLE dp_ref (LIKE dp);
+SELECT periods.add_period('dp_ref', 'p', 's', 'e', 'integerrange');
+ add_period 
+------------
+ t
+(1 row)
+
+SELECT periods.add_foreign_key('dp_ref', ARRAY['id'], 'p', 'k', key_name => 'f');
+ add_foreign_key 
+-----------------
+ f
+(1 row)
+
+DROP TRIGGER f_fk_insert ON dp_ref; -- fails
+ERROR:  cannot drop trigger "f_fk_insert" on table "dp_ref" because it is used in period foreign key "f"
+CONTEXT:  PL/pgSQL function periods.drop_protection() line 185 at RAISE
+DROP TRIGGER f_fk_update ON dp_ref; -- fails
+ERROR:  cannot drop trigger "f_fk_update" on table "dp_ref" because it is used in period foreign key "f"
+CONTEXT:  PL/pgSQL function periods.drop_protection() line 196 at RAISE
+DROP TRIGGER f_uk_update ON dp; -- fails
+ERROR:  cannot drop trigger "f_uk_update" on table "dp" because it is used in period foreign key "f"
+CONTEXT:  PL/pgSQL function periods.drop_protection() line 208 at RAISE
+DROP TRIGGER f_uk_delete ON dp; -- fails
+ERROR:  cannot drop trigger "f_uk_delete" on table "dp" because it is used in period foreign key "f"
+CONTEXT:  PL/pgSQL function periods.drop_protection() line 220 at RAISE
+SELECT periods.drop_foreign_key('dp_ref', 'f');
+ drop_foreign_key 
+------------------
+ t
+(1 row)
+
+DROP TABLE dp_ref;
+/* system_versioning */
+SELECT periods.add_system_versioning('dp');
+NOTICE:  history table "dp_history" created for "dp", be sure to index it properly
+ add_system_versioning 
+-----------------------
+ 
+(1 row)
+
+-- Note: The history table is protected by the history view and the history
+-- view is protected by the temporal functions.
+DROP TABLE dp_history CASCADE;
+NOTICE:  drop cascades to 5 other objects
+DETAIL:  drop cascades to view dp_with_history
+drop cascades to function dp__as_of(timestamp with time zone)
+drop cascades to function dp__between(timestamp with time zone,timestamp with time zone)
+drop cascades to function dp__between_symmetric(timestamp with time zone,timestamp with time zone)
+drop cascades to function dp__from_to(timestamp with time zone,timestamp with time zone)
+ERROR:  cannot drop table "public.dp_history" because it is used in SYSTEM VERSIONING for table "dp"
+CONTEXT:  PL/pgSQL function periods.drop_protection() line 236 at RAISE
+DROP VIEW dp_with_history CASCADE;
+NOTICE:  drop cascades to 4 other objects
+DETAIL:  drop cascades to function dp__as_of(timestamp with time zone)
+drop cascades to function dp__between(timestamp with time zone,timestamp with time zone)
+drop cascades to function dp__between_symmetric(timestamp with time zone,timestamp with time zone)
+drop cascades to function dp__from_to(timestamp with time zone,timestamp with time zone)
+ERROR:  cannot drop view "public.dp_with_history" because it is used in SYSTEM VERSIONING for table "dp"
+CONTEXT:  PL/pgSQL function periods.drop_protection() line 248 at RAISE
+DROP FUNCTION dp__as_of(timestamp with time zone);
+ERROR:  cannot drop function "public.dp__as_of(timestamp with time zone)" because it is used in SYSTEM VERSIONING for table "dp"
+CONTEXT:  PL/pgSQL function periods.drop_protection() line 260 at RAISE
+DROP FUNCTION dp__between(timestamp with time zone,timestamp with time zone);
+ERROR:  cannot drop function "public.dp__between(timestamp with time zone,timestamp with time zone)" because it is used in SYSTEM VERSIONING for table "dp"
+CONTEXT:  PL/pgSQL function periods.drop_protection() line 260 at RAISE
+DROP FUNCTION dp__between_symmetric(timestamp with time zone,timestamp with time zone);
+ERROR:  cannot drop function "public.dp__between_symmetric(timestamp with time zone,timestamp with time zone)" because it is used in SYSTEM VERSIONING for table "dp"
+CONTEXT:  PL/pgSQL function periods.drop_protection() line 260 at RAISE
+DROP FUNCTION dp__from_to(timestamp with time zone,timestamp with time zone);
+ERROR:  cannot drop function "public.dp__from_to(timestamp with time zone,timestamp with time zone)" because it is used in SYSTEM VERSIONING for table "dp"
+CONTEXT:  PL/pgSQL function periods.drop_protection() line 260 at RAISE
+SELECT periods.drop_system_versioning('dp', purge => true);
+ drop_system_versioning 
+------------------------
+ t
+(1 row)
+
+DROP TABLE dp;
+DROP TYPE integerrange;
 /* Clean up */
 DROP EXTENSION periods;
