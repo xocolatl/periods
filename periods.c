@@ -26,6 +26,9 @@
 
 PG_MODULE_MAGIC;
 
+PGDLLEXPORT Datum generated_always_as_row_start_end(PG_FUNCTION_ARGS);
+PGDLLEXPORT Datum write_history(PG_FUNCTION_ARGS);
+
 PG_FUNCTION_INFO_V1(generated_always_as_row_start_end);
 PG_FUNCTION_INFO_V1(write_history);
 
