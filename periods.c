@@ -175,6 +175,7 @@ GetRowStart(Oid typeid)
 			return TRANSACTION_DATE;
 		default:
 			elog(ERROR, "unexpected type: %d", typeid);
+			return 0;	/* keep compiler quiet */
 	}
 }
 
@@ -191,6 +192,7 @@ GetRowEnd(Oid typeid)
 			return INFINITE_DATE;
 		default:
 			elog(ERROR, "unexpected type: %d", typeid);
+			return 0;	/* keep compiler quiet */
 	}
 }
 
@@ -200,16 +202,17 @@ CompareWithCurrentDatum(Oid typeid, Datum value)
 	switch (typeid)
 	{
 		case TIMESTAMPTZOID:
-			return DirectFunctionCall2(timestamp_cmp, value, TRANSACTION_TSTZ);
+			return DatumGetInt32(DirectFunctionCall2(timestamp_cmp, value, TRANSACTION_TSTZ));
 
 		case TIMESTAMPOID:
-			return DirectFunctionCall2(timestamp_cmp, value, TRANSACTION_TS);
+			return DatumGetInt32(DirectFunctionCall2(timestamp_cmp, value, TRANSACTION_TS));
 
 		case DATEOID:
-			return DirectFunctionCall2(date_cmp, value, TRANSACTION_DATE);
+			return DatumGetInt32(DirectFunctionCall2(date_cmp, value, TRANSACTION_DATE));
 
 		default:
 			elog(ERROR, "unexpected type: %d", typeid);
+			return 0;	/* keep compiler quiet */
 	}
 }
 
@@ -219,16 +222,17 @@ CompareWithInfiniteDatum(Oid typeid, Datum value)
 	switch (typeid)
 	{
 		case TIMESTAMPTZOID:
-			return DirectFunctionCall2(timestamp_cmp, value, INFINITE_TSTZ);
+			return DatumGetInt32(DirectFunctionCall2(timestamp_cmp, value, INFINITE_TSTZ));
 
 		case TIMESTAMPOID:
-			return DirectFunctionCall2(timestamp_cmp, value, INFINITE_TS);
+			return DatumGetInt32(DirectFunctionCall2(timestamp_cmp, value, INFINITE_TS));
 
 		case DATEOID:
-			return DirectFunctionCall2(date_cmp, value, INFINITE_DATE);
+			return DatumGetInt32(DirectFunctionCall2(date_cmp, value, INFINITE_DATE));
 
 		default:
 			elog(ERROR, "unexpected type: %d", typeid);
+			return 0;	/* keep compiler quiet */
 	}
 }
 
