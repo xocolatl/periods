@@ -1415,7 +1415,7 @@ BEGIN
                     unique_key_row.key_name, foreign_key_row.key_name, foreign_key_row.table_name;
             END IF;
 
-            PERFORM drop_foreign_key(NULL, foreign_key_row.key_name);
+            PERFORM periods.drop_foreign_key(NULL, foreign_key_row.key_name);
         END LOOP;
 
         DELETE FROM periods.unique_keys AS uk
