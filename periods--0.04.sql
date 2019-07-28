@@ -1620,7 +1620,7 @@ BEGIN
      * Generate a name for the foreign constraint.  We don't have to worry about
      * concurrency here because all period ddl commands lock the periods table.
      */
-    IF key_name IS NOT NULL THEN
+    IF key_name IS NULL THEN
         key_name := periods._choose_name(
             ARRAY[(SELECT c.relname FROM pg_catalog.pg_class AS c WHERE c.oid = table_name)]
                || column_names
