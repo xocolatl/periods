@@ -1241,7 +1241,10 @@ BEGIN
     END IF;
 
     /* If we were given a unique constraint to use, look it up and make sure it matches */
-    unique_sql := 'UNIQUE (' || array_to_string(column_names || period_row.start_column_name || period_row.end_column_name, ', ') || ')';
+    SELECT format('UNIQUE (%s)', string_agg(quote_ident(u.column_name), ', ' ORDER BY u.ordinality))
+    INTO unique_sql
+    FROM unnest(column_names || period_row.start_column_name || period_row.end_column_name) WITH ORDINALITY AS u (column_name, ordinality);
+
     IF unique_constraint IS NOT NULL THEN
         SELECT c.oid, c.contype, c.condeferrable, c.conkey
         INTO constraint_record
@@ -1645,8 +1648,13 @@ BEGIN
     END IF;
 
     /* Get the columns that require checking the constraint */
-    foreign_columns := array_to_string(column_names || period_row.start_column_name || period_row.end_column_name, ', ');
-    unique_columns := array_to_string(unique_row.column_names || ref_period_row.start_column_name || ref_period_row.end_column_name, ', ');
+    SELECT string_agg(quote_ident(u.column_name), ', ' ORDER BY u.ordinality)
+    INTO foreign_columns
+    FROM unnest(column_names || period_row.start_column_name || period_row.end_column_name) WITH ORDINALITY AS u (column_name, ordinality);
+
+    SELECT string_agg(quote_ident(u.column_name), ', ' ORDER BY u.ordinality)
+    INTO unique_columns
+    FROM unnest(unique_row.column_names || ref_period_row.start_column_name || ref_period_row.end_column_name) WITH ORDINALITY AS u (column_name, ordinality);
 
     /* Time to make the underlying triggers */
     fk_insert_name := periods._choose_name(ARRAY[key_name], 'fk_insert');
@@ -2034,7 +2042,7 @@ BEGIN
 
     EXECUTE format(QSQL, foreign_key_info.uk_schema_name,
                          foreign_key_info.uk_table_name,
-                         array_to_string(foreign_key_info.uk_column_names, ', '),
+                         (SELECT string_agg(quote_ident(c), ', ' ORDER BY o) FROM unnest(foreign_key_info.uk_column_names) WITH ORDINALITY AS u (c, o)),
                          NULL,
                          foreign_key_info.uk_start_column_name,
                          NULL,
@@ -2042,7 +2050,7 @@ BEGIN
                          NULL,
                          foreign_key_info.fk_schema_name,
                          foreign_key_info.fk_table_name,
-                         array_to_string(foreign_key_info.fk_column_names, ', '),
+                         (SELECT string_agg(quote_ident(c), ', ' ORDER BY o) FROM unnest(foreign_key_info.fk_column_names) WITH ORDINALITY AS u (c, o)),
                          NULL,
                          foreign_key_info.fk_start_column_name,
                          NULL,
