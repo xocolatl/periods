@@ -772,5 +772,165 @@ SELECT periods.drop_system_versioning('dp', purge => true);
 
 DROP TABLE dp;
 DROP TYPE integerrange;
+/* RENAME following */
+/* periods */
+CREATE TABLE rename_test(col1 text, col2 bigint, col3 time, s integer, e integer);
+SELECT periods.add_period('rename_test', 'p', 's', 'e');
+ add_period 
+------------
+ t
+(1 row)
+
+TABLE periods.periods;
+ table_name  | period_name | start_column_name | end_column_name | range_type | bounds_check_constraint 
+-------------+-------------+-------------------+-----------------+------------+-------------------------
+ rename_test | p           | s                 | e               | int4range  | rename_test_p_check
+(1 row)
+
+ALTER TABLE rename_test RENAME s TO start;
+ALTER TABLE rename_test RENAME e TO "end";
+TABLE periods.periods;
+ table_name  | period_name | start_column_name | end_column_name | range_type | bounds_check_constraint 
+-------------+-------------+-------------------+-----------------+------------+-------------------------
+ rename_test | p           | start             | end             | int4range  | rename_test_p_check
+(1 row)
+
+ALTER TABLE rename_test RENAME start TO "s < e";
+TABLE periods.periods;
+ table_name  | period_name | start_column_name | end_column_name | range_type | bounds_check_constraint 
+-------------+-------------+-------------------+-----------------+------------+-------------------------
+ rename_test | p           | s < e             | end             | int4range  | rename_test_p_check
+(1 row)
+
+ALTER TABLE rename_test RENAME "end" TO "embedded "" symbols";
+TABLE periods.periods;
+ table_name  | period_name | start_column_name |  end_column_name   | range_type | bounds_check_constraint 
+-------------+-------------+-------------------+--------------------+------------+-------------------------
+ rename_test | p           | s < e             | embedded " symbols | int4range  | rename_test_p_check
+(1 row)
+
+ALTER TABLE rename_test RENAME CONSTRAINT rename_test_p_check TO start_before_end;
+TABLE periods.periods;
+ table_name  | period_name | start_column_name |  end_column_name   | range_type | bounds_check_constraint 
+-------------+-------------+-------------------+--------------------+------------+-------------------------
+ rename_test | p           | s < e             | embedded " symbols | int4range  | start_before_end
+(1 row)
+
+/* system_time_periods */
+SELECT periods.add_system_time_period('rename_test');
+ add_system_time_period 
+------------------------
+ t
+(1 row)
+
+TABLE periods.system_time_periods;
+ table_name  | period_name |         infinity_check_constraint          |         generated_always_trigger         |         write_history_trigger         |   truncate_trigger   
+-------------+-------------+--------------------------------------------+------------------------------------------+---------------------------------------+----------------------
+ rename_test | system_time | rename_test_system_time_end_infinity_check | rename_test_system_time_generated_always | rename_test_system_time_write_history | rename_test_truncate
+(1 row)
+
+ALTER TABLE rename_test RENAME CONSTRAINT rename_test_system_time_end_infinity_check TO inf_check;
+ALTER TRIGGER rename_test_system_time_generated_always ON rename_test RENAME TO generated_always;
+ALTER TRIGGER rename_test_system_time_write_history ON rename_test RENAME TO write_history;
+ALTER TRIGGER rename_test_truncate ON rename_test RENAME TO trunc;
+TABLE periods.system_time_periods;
+ table_name  | period_name | infinity_check_constraint | generated_always_trigger | write_history_trigger | truncate_trigger 
+-------------+-------------+---------------------------+--------------------------+-----------------------+------------------
+ rename_test | system_time | inf_check                 | generated_always         | write_history         | trunc
+(1 row)
+
+/* for_portion_views */
+SELECT periods.add_for_portion_view('rename_test', 'p');
+ add_for_portion_view 
+----------------------
+ t
+(1 row)
+
+TABLE periods.for_portion_views;
+ table_name  | period_name |           view_name           |   trigger_name   
+-------------+-------------+-------------------------------+------------------
+ rename_test | p           | rename_test__for_portion_of_p | for_portion_of_p
+(1 row)
+
+ALTER TRIGGER for_portion_of_p ON rename_test__for_portion_of_p RENAME TO portion_trigger;
+TABLE periods.for_portion_views;
+ table_name  | period_name |           view_name           |  trigger_name   
+-------------+-------------+-------------------------------+-----------------
+ rename_test | p           | rename_test__for_portion_of_p | portion_trigger
+(1 row)
+
+SELECT periods.drop_for_portion_view('rename_test', 'p');
+ drop_for_portion_view 
+-----------------------
+ t
+(1 row)
+
+/* unique_keys */
+SELECT periods.add_unique_key('rename_test', ARRAY['col2', 'col1', 'col3'], 'p');
+ add_unique_key 
+----------------
+ t
+(1 row)
+
+TABLE periods.unique_keys;
+           key_name           | table_name  |   column_names   | period_name |                    unique_constraint                    |            exclude_constraint             
+------------------------------+-------------+------------------+-------------+---------------------------------------------------------+-------------------------------------------
+ rename_test_col2_col1_col3_p | rename_test | {col2,col1,col3} | p           | rename_test_col2_col1_col3_s < e_embedded " symbols_key | rename_test_col2_col1_col3_int4range_excl
+(1 row)
+
+ALTER TABLE rename_test RENAME COLUMN col1 TO "COLUMN1";
+ALTER TABLE rename_test RENAME CONSTRAINT "rename_test_col2_col1_col3_s < e_embedded "" symbols_key" TO unconst;
+ALTER TABLE rename_test RENAME CONSTRAINT rename_test_col2_col1_col3_int4range_excl TO exconst;
+TABLE periods.unique_keys;
+           key_name           | table_name  |    column_names     | period_name | unique_constraint | exclude_constraint 
+------------------------------+-------------+---------------------+-------------+-------------------+--------------------
+ rename_test_col2_col1_col3_p | rename_test | {col2,COLUMN1,col3} | p           | unconst           | exconst
+(1 row)
+
+/* foreign_keys */
+CREATE TABLE rename_test_ref (LIKE rename_test);
+SELECT periods.add_period('rename_test_ref', 'q', 's < e', 'embedded " symbols');
+ add_period 
+------------
+ t
+(1 row)
+
+SELECT periods.add_foreign_key('rename_test_ref', ARRAY['col2', 'COLUMN1', 'col3'], 'q', 'rename_test_col2_col1_col3_p');
+           add_foreign_key           
+-------------------------------------
+ rename_test_ref_col2_COLUMN1_col3_q
+(1 row)
+
+TABLE periods.foreign_keys;
+              key_name               |   table_name    |    column_names     | period_name |          unique_key          | match_type | delete_action | update_action |               fk_insert_trigger               |               fk_update_trigger               |               uk_update_trigger               |               uk_delete_trigger               
+-------------------------------------+-----------------+---------------------+-------------+------------------------------+------------+---------------+---------------+-----------------------------------------------+-----------------------------------------------+-----------------------------------------------+-----------------------------------------------
+ rename_test_ref_col2_COLUMN1_col3_q | rename_test_ref | {col2,COLUMN1,col3} | q           | rename_test_col2_col1_col3_p | SIMPLE     | NO ACTION     | NO ACTION     | rename_test_ref_col2_COLUMN1_col3_q_fk_insert | rename_test_ref_col2_COLUMN1_col3_q_fk_update | rename_test_ref_col2_COLUMN1_col3_q_uk_update | rename_test_ref_col2_COLUMN1_col3_q_uk_delete
+(1 row)
+
+ALTER TABLE rename_test_ref RENAME COLUMN "COLUMN1" TO col1; -- fails
+ERROR:  cannot drop or rename column "COLUMN1" on table "rename_test_ref" because it is used in period foreign key "rename_test_ref_col2_COLUMN1_col3_q"
+CONTEXT:  PL/pgSQL function periods.rename_following() line 194 at RAISE
+ALTER TRIGGER "rename_test_ref_col2_COLUMN1_col3_q_fk_insert" ON rename_test_ref RENAME TO fk_insert;
+ERROR:  cannot drop or rename trigger "rename_test_ref_col2_COLUMN1_col3_q_fk_insert" on table "rename_test_ref" because it is used in period foreign key "rename_test_ref_col2_COLUMN1_col3_q"
+CONTEXT:  PL/pgSQL function periods.rename_following() line 229 at RAISE
+ALTER TRIGGER "rename_test_ref_col2_COLUMN1_col3_q_fk_update" ON rename_test_ref RENAME TO fk_update;
+ERROR:  cannot drop or rename trigger "rename_test_ref_col2_COLUMN1_col3_q_fk_update" on table "rename_test_ref" because it is used in period foreign key "rename_test_ref_col2_COLUMN1_col3_q"
+CONTEXT:  PL/pgSQL function periods.rename_following() line 229 at RAISE
+ALTER TRIGGER "rename_test_ref_col2_COLUMN1_col3_q_uk_update" ON rename_test RENAME TO uk_update;
+ERROR:  cannot drop or rename trigger "rename_test_ref_col2_COLUMN1_col3_q_uk_update" on table "rename_test" because it is used in period foreign key "rename_test_ref_col2_COLUMN1_col3_q"
+CONTEXT:  PL/pgSQL function periods.rename_following() line 229 at RAISE
+ALTER TRIGGER "rename_test_ref_col2_COLUMN1_col3_q_uk_delete" ON rename_test RENAME TO uk_delete;
+ERROR:  cannot drop or rename trigger "rename_test_ref_col2_COLUMN1_col3_q_uk_delete" on table "rename_test" because it is used in period foreign key "rename_test_ref_col2_COLUMN1_col3_q"
+CONTEXT:  PL/pgSQL function periods.rename_following() line 229 at RAISE
+TABLE periods.foreign_keys;
+              key_name               |   table_name    |    column_names     | period_name |          unique_key          | match_type | delete_action | update_action |               fk_insert_trigger               |               fk_update_trigger               |               uk_update_trigger               |               uk_delete_trigger               
+-------------------------------------+-----------------+---------------------+-------------+------------------------------+------------+---------------+---------------+-----------------------------------------------+-----------------------------------------------+-----------------------------------------------+-----------------------------------------------
+ rename_test_ref_col2_COLUMN1_col3_q | rename_test_ref | {col2,COLUMN1,col3} | q           | rename_test_col2_col1_col3_p | SIMPLE     | NO ACTION     | NO ACTION     | rename_test_ref_col2_COLUMN1_col3_q_fk_insert | rename_test_ref_col2_COLUMN1_col3_q_fk_update | rename_test_ref_col2_COLUMN1_col3_q_uk_update | rename_test_ref_col2_COLUMN1_col3_q_uk_delete
+(1 row)
+
+DROP TABLE rename_test_ref;
+/* system_versioning */
+-- Nothing to do here
+DROP TABLE rename_test;
 /* Clean up */
 DROP EXTENSION periods;

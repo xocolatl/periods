@@ -239,12 +239,8 @@ SELECT * FROM t__between_symmetric('...', '...');
 
 This extension is pretty much feature complete, but there are still many
 aspects that need to be handled. For example, there is currently no
-management of access control.
-
-There should also be proper handling of users modifying the period’s
-properties after we’ve done our tests. We handle this for DROP but not
-yet for ALTER. For example, a column belonging to a period might be
-renamed and then we’ll lose track of it.
+management of access control. There should also be proper handling of
+users modifying all the things we test for when creating our objects.
 
 ## Performance
 
