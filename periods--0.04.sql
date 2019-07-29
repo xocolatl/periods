@@ -1681,6 +1681,7 @@ $function$
 #variable_conflict use_variable
 DECLARE
     foreign_key_row periods.foreign_keys;
+    unique_table_name regclass;
 BEGIN
     IF table_name IS NULL AND key_name IS NULL THEN
         RAISE EXCEPTION 'no table or key name specified';
@@ -1698,15 +1699,40 @@ BEGIN
         DELETE FROM periods.foreign_keys AS fk
         WHERE fk.key_name = foreign_key_row.key_name;
 
-        /* Make sure the table hasn't been dropped before doing these. */
+        /*
+         * Make sure the table hasn't been dropped and that the triggers exist
+         * before doing these.  We could use the IF EXISTS clause but we don't
+         * in order to avoid the NOTICE.
+         */
         IF EXISTS (
-            SELECT FROM pg_catalog.pg_class AS c
-            WHERE c.oid = foreign_key_row.table_name)
+                SELECT FROM pg_catalog.pg_class AS c
+                WHERE c.oid = foreign_key_row.table_name)
+            AND EXISTS (
+                SELECT FROM pg_catalog.pg_trigger AS t
+                WHERE t.tgrelid = foreign_key_row.table_name
+                  AND t.tgname IN (foreign_key_row.fk_insert_trigger, foreign_key_row.fk_update_trigger))
         THEN
             EXECUTE format('DROP TRIGGER %I ON %s', foreign_key_row.fk_insert_trigger, foreign_key_row.table_name);
             EXECUTE format('DROP TRIGGER %I ON %s', foreign_key_row.fk_update_trigger, foreign_key_row.table_name);
-            EXECUTE format('DROP TRIGGER %I ON %s', foreign_key_row.uk_update_trigger, foreign_key_row.table_name);
-            EXECUTE format('DROP TRIGGER %I ON %s', foreign_key_row.uk_delete_trigger, foreign_key_row.table_name);
+        END IF;
+
+        SELECT uk.table_name
+        INTO unique_table_name
+        FROM periods.unique_keys AS uk
+        WHERE uk.key_name = foreign_key_row.unique_key;
+
+        /* Ditto for the UNIQUE side. */
+        IF FOUND
+            AND EXISTS (
+                SELECT FROM pg_catalog.pg_class AS c
+                WHERE c.oid = unique_table_name)
+            AND EXISTS (
+                SELECT FROM pg_catalog.pg_trigger AS t
+                WHERE t.tgrelid = unique_table_name
+                  AND t.tgname IN (foreign_key_row.uk_update_trigger, foreign_key_row.uk_delete_trigger))
+        THEN
+            EXECUTE format('DROP TRIGGER %I ON %s', foreign_key_row.uk_update_trigger, unique_table_name);
+            EXECUTE format('DROP TRIGGER %I ON %s', foreign_key_row.uk_delete_trigger, unique_table_name);
         END IF;
     END LOOP;
 
