@@ -620,8 +620,17 @@ BEGIN
     /*
      * REFERENCES:
      *     SQL:2016 4.15.2.2
+     *     SQL:2016 11.7
      *     SQL:2016 11.27
      */
+
+    /* The columns must not be part of UNIQUE keys. SQL:2016 11.7 SR 5)b) */
+    IF EXISTS (
+        SELECT FROM periods.unique_keys AS uk
+        WHERE uk.column_names && ARRAY[start_column_name, end_column_name])
+    THEN
+        RAISE EXCEPTION 'columns in period for SYSTEM_TIME are not allowed in UNIQUE keys';
+    END IF;
 
     /* Must be a regular persistent base table. SQL:2016 11.27 SR 2 */
 
@@ -1209,6 +1218,11 @@ BEGIN
         RAISE EXCEPTION 'period "%" does not exist', period_name;
     END IF;
 
+    /* SYSTEM_TIME is not allowed in UNIQUE constraints. SQL:2016 11.7 SR 5)b) */
+    IF period_name = 'system_time' THEN
+        RAISE EXCEPTION 'periods for SYSTEM_TIME are not allowed in UNIQUE keys';
+    END IF;
+
     /* For convenience, put the period's attnums in an array */
     period_attnums := ARRAY[
         (SELECT a.attnum FROM pg_catalog.pg_attribute AS a WHERE (a.attrelid, a.attname) = (period_row.table_name, period_row.start_column_name)),
@@ -1238,6 +1252,18 @@ BEGIN
     END IF;
     IF period_row.end_column_name = ANY (column_names) THEN
         RAISE EXCEPTION 'column "%" specified twice', period_row.end_column_name;
+    END IF;
+
+    /*
+     * Columns belonging to a SYSTEM_TIME period are not allowed in a UNIQUE
+     * key. SQL:2016 11.7 SR 5)b)
+     */
+    IF EXISTS (
+        SELECT FROM periods.periods AS p
+        WHERE (p.table_name, p.period_name) = (period_row.table_name, 'system_time')
+          AND ARRAY[p.start_column_name, p.end_column_name] && column_names)
+    THEN
+        RAISE EXCEPTION 'columns in period for SYSTEM_TIME are not allowed in UNIQUE keys';
     END IF;
 
     /* If we were given a unique constraint to use, look it up and make sure it matches */
@@ -1546,8 +1572,21 @@ BEGIN
         RAISE EXCEPTION 'period "%" does not exist', period_name;
     END IF;
 
+    /* SYSTEM_TIME is not allowed in referential constraints. SQL:2016 11.8 SR 10 */
     IF period_row.period_name = 'system_time' THEN
-        RAISE EXCEPTION 'periods for SYSTEM_TIME may not appear in foreign keys';
+        RAISE EXCEPTION 'periods for SYSTEM_TIME are not allowed in foreign keys';
+    END IF;
+
+    /*
+     * Columns belonging to a SYSTEM_TIME period are not allowed in a foreign
+     * key. SQL:2016 11.8 SR 10
+     */
+    IF EXISTS (
+        SELECT FROM periods.periods AS p
+        WHERE (p.table_name, p.period_name) = (period_row.table_name, 'system_time')
+          AND ARRAY[p.start_column_name, p.end_column_name] && column_names)
+    THEN
+        RAISE EXCEPTION 'columns in period for SYSTEM_TIME are not allowed in UNIQUE keys';
     END IF;
 
     /* Get column attnums from column names */
@@ -2870,10 +2909,3 @@ $function$;
 
 CREATE EVENT TRIGGER periods_rename_following ON ddl_command_end EXECUTE PROCEDURE periods.rename_following();
 
-/*
-
-TODO:
-
--   Don't allow new unique indexes to use a system_time period column. 11.7 SR 5b
-
-*/

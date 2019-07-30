@@ -242,6 +242,34 @@ TABLE periods.periods;
 TABLE periods.system_time_periods;
 
 
+/* Forbid UNIQUE keys on system_time columns */
+CREATE TABLE no_unique (col1 timestamp with time zone, s bigint, e bigint);
+SELECT periods.add_period('no_unique', 'p', 's', 'e');
+SELECT periods.add_unique_key('no_unique', ARRAY['col1'], 'p'); -- passes
+SELECT periods.add_system_time_period('no_unique');
+SELECT periods.add_unique_key('no_unique', ARRAY['system_time_start'], 'p'); -- fails
+SELECT periods.add_unique_key('no_unique', ARRAY['system_time_end'], 'p'); -- fails
+SELECT periods.add_unique_key('no_unique', ARRAY['col1'], 'system_time'); -- fails
+SELECT periods.drop_system_time_period('no_unique');
+SELECT periods.add_unique_key('no_unique', ARRAY['system_time_start'], 'p'); -- passes
+SELECT periods.add_unique_key('no_unique', ARRAY['system_time_end'], 'p'); -- passes
+SELECT periods.add_system_time_period('no_unique'); -- fails
+SELECT periods.drop_unique_key('no_unique', 'no_unique_system_time_start_p');
+SELECT periods.drop_unique_key('no_unique', 'no_unique_system_time_end_p');
+/* Forbid foreign keys on system_time columns */
+CREATE TABLE no_unique_ref (LIKE no_unique);
+SELECT periods.add_period('no_unique_ref', 'q', 's', 'e');
+SELECT periods.add_system_time_period('no_unique_ref');
+SELECT periods.add_foreign_key('no_unique_ref', ARRAY['system_time_start'], 'q', 'no_unique_col1_p'); -- fails
+SELECT periods.add_foreign_key('no_unique_ref', ARRAY['system_time_end'], 'q', 'no_unique_col1_p'); -- fails
+SELECT periods.add_foreign_key('no_unique_ref', ARRAY['col1'], 'system_time', 'no_unique_col1_p'); -- fails
+SELECT periods.drop_system_time_period('no_unique_ref');
+SELECT periods.add_foreign_key('no_unique_ref', ARRAY['system_time_start'], 'q', 'no_unique_col1_p'); -- passes
+SELECT periods.add_foreign_key('no_unique_ref', ARRAY['system_time_end'], 'q', 'no_unique_col1_p'); -- passes
+SELECT periods.add_system_time_period('no_unique_ref'); -- fails
+DROP TABLE no_unique, no_unique_ref;
+
+
 /* DROP protection */
 
 CREATE TYPE integerrange AS RANGE (SUBTYPE = integer);
