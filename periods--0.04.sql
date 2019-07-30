@@ -307,11 +307,8 @@ BEGIN
     END IF;
 
     IF persistence <> 'p' THEN
-        /*
-         * We could probably accept unlogged tables but what's the point?
-         TODO: in the health check, make sure this remains true
-         */
-        RAISE EXCEPTION 'table must be persistent';
+        /* We could probably accept unlogged tables but what's the point? */
+        RAISE EXCEPTION 'table "%" must be persistent', table_name;
     END IF;
 
     /*
@@ -654,11 +651,8 @@ BEGIN
     END IF;
 
     IF persistence <> 'p' THEN
-        /*
-         * We could probably accept unlogged tables but what's the point?
-         TODO: in the health check, make sure this remains true
-         */
-        RAISE EXCEPTION 'table must be persistent';
+        /* We could probably accept unlogged tables but what's the point? */
+        RAISE EXCEPTION 'table "%" must be persistent', table_class;
     END IF;
 
     /*
@@ -2178,9 +2172,8 @@ BEGIN
         /*
          * We could probably accept unlogged tables if the history table is
          * also unlogged, but what's the point?
-         TODO: in the health check, make sure this remains true
          */
-        RAISE EXCEPTION 'table must be persistent';
+        RAISE EXCEPTION 'table "%" must be persistent', table_class;
     END IF;
 
     /* We need a SYSTEM_TIME period. SQL:2016 11.29 SR 4 */
@@ -2909,3 +2902,37 @@ $function$;
 
 CREATE EVENT TRIGGER periods_rename_following ON ddl_command_end EXECUTE PROCEDURE periods.rename_following();
 
+CREATE FUNCTION periods.health_checks()
+ RETURNS event_trigger
+ LANGUAGE plpgsql
+AS
+$function$
+#variable_conflict use_variable
+DECLARE
+    r record;
+BEGIN
+    /* Make sure that all of our tables are still persistent */
+    FOR r IN
+        SELECT p.table_name
+        FROM periods.periods AS p
+        JOIN pg_catalog.pg_class AS c ON c.oid = p.table_name
+        WHERE c.relpersistence <> 'p'
+    LOOP
+        RAISE EXCEPTION 'table "%" must remain persistent because it has periods',
+            r.table_name;
+    END LOOP;
+
+    /* And the history tables, too */
+    FOR r IN
+        SELECT sv.table_name
+        FROM periods.system_versioning AS sv
+        JOIN pg_catalog.pg_class AS c ON c.oid = sv.history_table_name
+        WHERE c.relpersistence <> 'p'
+    LOOP
+        RAISE EXCEPTION 'history table "%" must remain persistent because it has periods',
+            r.table_name;
+    END LOOP;
+END;
+$function$;
+
+CREATE EVENT TRIGGER periods_health_checks ON ddl_command_end EXECUTE PROCEDURE periods.health_checks();

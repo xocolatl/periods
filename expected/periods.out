@@ -723,7 +723,7 @@ SELECT periods.add_foreign_key('no_unique_ref', ARRAY['system_time_end'], 'q', '
 
 SELECT periods.add_system_time_period('no_unique_ref'); -- fails
 ERROR:  columns for SYSTEM_TIME must not be part of foreign keys
-CONTEXT:  PL/pgSQL function periods.add_system_time_period(regclass,name,name) line 174 at RAISE
+CONTEXT:  PL/pgSQL function periods.add_system_time_period(regclass,name,name) line 171 at RAISE
 DROP TABLE no_unique, no_unique_ref;
 /* DROP protection */
 CREATE TYPE integerrange AS RANGE (SUBTYPE = integer);
@@ -1037,5 +1037,46 @@ DROP TABLE rename_test_ref;
 /* system_versioning */
 -- Nothing to do here
 DROP TABLE rename_test;
+/* Health checks */
+CREATE UNLOGGED TABLE log (id bigint, s date, e date);
+SELECT periods.add_period('log', 'p', 's', 'e'); -- fails
+ERROR:  table "log" must be persistent
+CONTEXT:  PL/pgSQL function periods.add_period(regclass,name,name,name,regtype) line 72 at RAISE
+SELECT periods.add_system_time_period('log'); -- fails
+ERROR:  table "log" must be persistent
+CONTEXT:  PL/pgSQL function periods.add_system_time_period(regclass,name,name) line 77 at RAISE
+ALTER TABLE log SET LOGGED;
+SELECT periods.add_period('log', 'p', 's', 'e'); -- passes
+ add_period 
+------------
+ t
+(1 row)
+
+SELECT periods.add_system_time_period('log'); -- passes
+ add_system_time_period 
+------------------------
+ t
+(1 row)
+
+ALTER TABLE log SET UNLOGGED; -- fails
+ERROR:  table "log" must remain persistent because it has periods
+CONTEXT:  PL/pgSQL function periods.health_checks() line 13 at RAISE
+SELECT periods.add_system_versioning('log');
+NOTICE:  history table "log_history" created for "log", be sure to index it properly
+ add_system_versioning 
+-----------------------
+ 
+(1 row)
+
+ALTER TABLE log_history SET UNLOGGED; -- fails
+ERROR:  history table "log" must remain persistent because it has periods
+CONTEXT:  PL/pgSQL function periods.health_checks() line 24 at RAISE
+SELECT periods.drop_system_versioning('log', purge => true);
+ drop_system_versioning 
+------------------------
+ t
+(1 row)
+
+DROP TABLE log;
 /* Clean up */
 DROP EXTENSION periods;

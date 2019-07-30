@@ -239,8 +239,7 @@ SELECT * FROM t__between_symmetric('...', '...');
 
 This extension is pretty much feature complete, but there are still many
 aspects that need to be handled. For example, there is currently no
-management of access control. There should also be proper handling of
-users modifying all the things we test for when creating our objects.
+management of access control.
 
 ## Performance
 

@@ -391,5 +391,19 @@ DROP TABLE rename_test_ref;
 DROP TABLE rename_test;
 
 
+/* Health checks */
+CREATE UNLOGGED TABLE log (id bigint, s date, e date);
+SELECT periods.add_period('log', 'p', 's', 'e'); -- fails
+SELECT periods.add_system_time_period('log'); -- fails
+ALTER TABLE log SET LOGGED;
+SELECT periods.add_period('log', 'p', 's', 'e'); -- passes
+SELECT periods.add_system_time_period('log'); -- passes
+ALTER TABLE log SET UNLOGGED; -- fails
+SELECT periods.add_system_versioning('log');
+ALTER TABLE log_history SET UNLOGGED; -- fails
+SELECT periods.drop_system_versioning('log', purge => true);
+DROP TABLE log;
+
+
 /* Clean up */
 DROP EXTENSION periods;
