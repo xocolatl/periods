@@ -1,0 +1,137 @@
+pull_requests:
+  do_not_increment_build_number: true
+os: Visual Studio 2015
+configuration: Release
+platform:
+  - x86
+  - x64
+clone_depth: 1
+environment:
+  PGUSER: postgres
+  PGPASSWORD: Password12!
+  matrix:
+  - pg: REL_12_STABLE
+    PlatformToolset: v141
+    configuration: Debug
+    APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2017
+  - pg: master
+    PlatformToolset: v141
+    configuration: Debug
+    APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2017
+  - pg: 9.5.18-3
+    PlatformToolset: v120
+  - pg: 9.6.14-3
+    PlatformToolset: v120
+  - pg: 10.9-3
+    PlatformToolset: v120
+  - pg: 11.4-3
+    PlatformToolset: v140
+matrix:
+  allow_failures:
+    - pg: master
+    - pg: 9.5.18-3
+      platform: x64
+  exclude:
+    - platform: x86
+      pg: 11.4-3
+    - platform: x86
+      pg: master
+    - platform: x86
+      pg: REL_12_STABLE
+
+init: # Make %exe% available for caching
+- ps: |
+    if ("$env:PLATFORM" -eq "x64") {
+      $env:pf = "$env:ProgramFiles"
+      $env:x64 = "-x64"
+    } else {
+      $env:pf = "${env:ProgramFiles(x86)}"
+    }
+    $env:exe = "postgresql-$env:pg-windows$env:x64.exe"
+    [Environment]::SetEnvironmentVariable("exe", $env:exe, "Machine")
+
+install:
+- ps: |
+    # http://www.databasesoup.com/2016/05/changing-postgresql-version-numbering.html
+    $env:pgversion = $env:pg -replace "\.\d+-\d+$", ""
+    # [Environment]::SetEnvironmentVariable("pgversion", $env:pgversion, "Machine")
+    $env:pgroot = "$env:pf\PostgreSQL\$env:pgversion"
+    if ("$env:pg" -notmatch "\.") {
+      $env:Path += ";C:\msys64\usr\bin;C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\bin\amd64"
+      git clone -q --depth 1 --branch $env:pg https://git.postgresql.org/git/postgresql.git c:\projects\postgresql
+      pushd c:\projects\postgresql
+      perl src\tools\msvc\build.pl
+      perl src\tools\msvc\install.pl "$env:pgroot"
+      popd
+    } else {
+      if (-not (Test-Path "$env:pgroot\bin")) {
+        if (-not (Test-Path "$env:exe")) {
+          Start-FileDownload "http://get.enterprisedb.com/postgresql/$env:exe"
+        }
+        & ".\$env:exe" --unattendedmodeui none --mode unattended --superpassword "$env:PGPASSWORD" --servicepassword "$env:PGPASSWORD" | Out-Null
+        Stop-Service "postgresql$env:x64-$env:pgversion"
+      }
+    }
+
+cache:
+- '%exe%'
+
+build_script:
+- msbuild /p:PlatformToolset=%PlatformToolset% /p:configuration=%CONFIGURATION% /p:platform=%PLATFORM%
+          periods.vcxproj
+          /verbosity:minimal /logger:"C:\Program Files\AppVeyor\BuildAgent\Appveyor.MSBuildLogger.dll"
+
+after_build:
+- ps: |
+    $dll = ($env:PLATFORM -replace "x86", ".") + "\$env:CONFIGURATION\periods.dll"
+    Add-AppveyorMessage Packing -Category Information
+    New-Item -Name tmp\share\extension -ItemType "directory"
+    Copy-Item "*.sql" -Destination tmp\share\extension\
+    Copy-Item "*.control" -Destination tmp\share\extension\
+    Copy-Item LICENSE -Destination tmp\PERIODS_TABLES_LICENSE
+    New-Item -Name tmp\lib -ItemType "directory"
+    New-Item -Name tmp\debug_symbols -ItemType "directory"
+    Copy-Item $dll -Destination tmp\lib
+    Copy-Item ($dll -replace "\.dll", ".pdb") -Destination tmp\debug_symbols
+    $zip = "periods-$(${env:APPVEYOR_REPO_COMMIT}.SubString(0,8))-pg$env:pgversion-$env:PLATFORM.zip"
+    Compress-Archive -Path ".\tmp\*" -DestinationPath $zip
+
+test_script:
+- ps: |
+    $env:path += ";$env:pgroot\bin"
+    Add-AppveyorMessage "Copying the extension files to the PostgreSQL directories." -Category Information
+    Expand-Archive -LiteralPath $zip -DestinationPath $env:pgroot
+    if ("$env:pg" -notmatch "\.") {
+      Set-Content -path pg.pass -value "$env:pgpassword" -encoding ascii
+      initdb -A md5 -U "$env:PGUSER" --pwfile=pg.pass C:\pgdata
+      pg_ctl register -S demand -N "postgresql$env:x64-$env:pgversion" -D c:\pgdata
+    }
+    Start-Service postgresql$env:x64-$env:pgversion
+    Add-AppveyorTest Regression -Framework pg_regress -FileName sql\ -Outcome Running
+    $env:Outcome="Passed"
+    $elapsed=(Measure-Command {
+      pg_regress "--bindir=$env:pgroot\bin" --dbname=regression periods 2>&1 |
+        %{ if ($_ -is [System.Management.Automation.ErrorRecord]) { $_.Exception.Message } else { $_ } } |
+          Out-Default
+      if ($LASTEXITCODE -ne 0) {
+        $env:Outcome="Failed"
+      }
+    }).TotalMilliseconds
+    Update-AppVeyorTest Regression -Framework pg_regress -FileName sql\ -Outcome "$env:Outcome" -Duration $elapsed
+    if ("$env:Outcome" -ne "Passed") {
+      type regression.diffs
+      $host.SetShouldExit($LastExitCode)
+    }
+
+artifacts:
+- path: '*.zip'
+
+deploy:
+    # Deploy to GitHub Releases
+  - provider: GitHub
+    draft: false
+    prerelease: false
+    auth_token:
+      secure: QR7uEDoDDcUclQhaQDdbymUotMh1Gq++D+ljzKGC4a1Y9hr6BszPYRcLy9i0HJ/k
+    on:
+      appveyor_repo_tag: true       # deploy on tag push only
