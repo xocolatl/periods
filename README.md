@@ -272,3 +272,13 @@ Conduct](https://www.postgresql.org/about/policies/coc/).
 
 Released under the [PostgreSQL
 License](https://www.postgresql.org/about/licence/).
+
+# Acknowledgements
+
+The project would like extend special thanks to:
+
+  - [Christoph Berg](https://github.com/df7cb/) for Debian packaging,
+  - [Devrim Gündüz](https://github.com/devrimgunduz) for RPM packaging,
+    and
+  - [Mikhail Titov](https://github.com/mlt) for Appveyor and Windows
+    support.
