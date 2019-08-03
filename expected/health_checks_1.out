@@ -1,0 +1,44 @@
+SELECT setting::integer < 90600 AS pre_96
+FROM pg_settings WHERE name = 'server_version_num';
+ pre_96 
+--------
+ t
+(1 row)
+
+/* Ensure tables with periods are persistent */
+CREATE UNLOGGED TABLE log (id bigint, s date, e date);
+SELECT periods.add_period('log', 'p', 's', 'e'); -- fails
+ERROR:  table "log" must be persistent
+SELECT periods.add_system_time_period('log'); -- fails
+ERROR:  table "log" must be persistent
+ALTER TABLE log SET LOGGED;
+SELECT periods.add_period('log', 'p', 's', 'e'); -- passes
+ add_period 
+------------
+ t
+(1 row)
+
+SELECT periods.add_system_time_period('log'); -- passes
+ add_system_time_period 
+------------------------
+ t
+(1 row)
+
+ALTER TABLE log SET UNLOGGED; -- fails
+ERROR:  table "log" must remain persistent because it has periods
+SELECT periods.add_system_versioning('log');
+NOTICE:  history table "log_history" created for "log", be sure to index it properly
+ add_system_versioning 
+-----------------------
+ 
+(1 row)
+
+ALTER TABLE log_history SET UNLOGGED; -- fails
+ERROR:  history table "log" must remain persistent because it has periods
+SELECT periods.drop_system_versioning('log', purge => true);
+ drop_system_versioning 
+------------------------
+ t
+(1 row)
+
+DROP TABLE log;

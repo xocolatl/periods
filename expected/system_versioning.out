@@ -1,0 +1,192 @@
+/* Basic SYSTEM VERSIONING */
+CREATE TABLE sysver (val text);
+SELECT periods.add_system_time_period('sysver');
+ add_system_time_period 
+------------------------
+ t
+(1 row)
+
+TABLE periods.system_time_periods;
+ table_name | period_name |       infinity_check_constraint       |      generated_always_trigger       |      write_history_trigger       | truncate_trigger 
+------------+-------------+---------------------------------------+-------------------------------------+----------------------------------+------------------
+ sysver     | system_time | sysver_system_time_end_infinity_check | sysver_system_time_generated_always | sysver_system_time_write_history | sysver_truncate
+(1 row)
+
+TABLE periods.system_versioning;
+ table_name | period_name | history_table_name | view_name | func_as_of | func_between | func_between_symmetric | func_from_to 
+------------+-------------+--------------------+-----------+------------+--------------+------------------------+--------------
+(0 rows)
+
+SELECT periods.add_system_versioning('sysver');
+NOTICE:  history table "sysver_history" created for "sysver", be sure to index it properly
+ add_system_versioning 
+-----------------------
+ 
+(1 row)
+
+TABLE periods.system_versioning;
+ table_name | period_name | history_table_name |      view_name      |               func_as_of                |                            func_between                            |                            func_between_symmetric                            |                            func_from_to                            
+------------+-------------+--------------------+---------------------+-----------------------------------------+--------------------------------------------------------------------+------------------------------------------------------------------------------+--------------------------------------------------------------------
+ sysver     | system_time | sysver_history     | sysver_with_history | sysver__as_of(timestamp with time zone) | sysver__between(timestamp with time zone,timestamp with time zone) | sysver__between_symmetric(timestamp with time zone,timestamp with time zone) | sysver__from_to(timestamp with time zone,timestamp with time zone)
+(1 row)
+
+INSERT INTO sysver (val) VALUES ('hello');
+SELECT val FROM sysver;
+  val  
+-------
+ hello
+(1 row)
+
+SELECT val FROM sysver_history ORDER BY system_time_start;
+ val 
+-----
+(0 rows)
+
+SELECT transaction_timestamp() AS ts1 \gset
+UPDATE sysver SET val = 'world';
+SELECT val FROM sysver;
+  val  
+-------
+ world
+(1 row)
+
+SELECT val FROM sysver_history ORDER BY system_time_start;
+  val  
+-------
+ hello
+(1 row)
+
+SELECT transaction_timestamp() AS ts2 \gset
+DELETE FROM sysver;
+SELECT val FROM sysver;
+ val 
+-----
+(0 rows)
+
+SELECT val FROM sysver_history ORDER BY system_time_start;
+  val  
+-------
+ hello
+ world
+(2 rows)
+
+/* temporal queries */
+SELECT val FROM sysver__as_of(:'ts1') ORDER BY system_time_start;
+  val  
+-------
+ hello
+(1 row)
+
+SELECT val FROM sysver__as_of(:'ts2') ORDER BY system_time_start;
+  val  
+-------
+ world
+(1 row)
+
+SELECT val FROM sysver__from_to(:'ts1', :'ts2') ORDER BY system_time_start;
+  val  
+-------
+ hello
+ world
+(2 rows)
+
+SELECT val FROM sysver__from_to(:'ts2', :'ts1') ORDER BY system_time_start;
+ val 
+-----
+(0 rows)
+
+SELECT val FROM sysver__between(:'ts1', :'ts2') ORDER BY system_time_start;
+  val  
+-------
+ hello
+ world
+(2 rows)
+
+SELECT val FROM sysver__between(:'ts2', :'ts1') ORDER BY system_time_start;
+ val 
+-----
+(0 rows)
+
+SELECT val FROM sysver__between_symmetric(:'ts1', :'ts2') ORDER BY system_time_start;
+  val  
+-------
+ hello
+ world
+(2 rows)
+
+SELECT val FROM sysver__between_symmetric(:'ts2', :'ts1') ORDER BY system_time_start;
+  val  
+-------
+ hello
+ world
+(2 rows)
+
+/* TRUNCATE should delete the history, too */
+SELECT val FROM sysver_with_history;
+  val  
+-------
+ hello
+ world
+(2 rows)
+
+TRUNCATE sysver;
+SELECT val FROM sysver_with_history; --empty
+ val 
+-----
+(0 rows)
+
+/* Try modifying several times in a transaction */
+BEGIN;
+INSERT INTO sysver (val) VALUES ('hello');
+INSERT INTO sysver (val) VALUES ('world');
+ROLLBACK;
+SELECT val FROM sysver_with_history; --empty
+ val 
+-----
+(0 rows)
+
+BEGIN;
+INSERT INTO sysver (val) VALUES ('hello');
+UPDATE sysver SET val = 'world';
+UPDATE sysver SET val = 'world2';
+UPDATE sysver SET val = 'world3';
+DELETE FROM sysver;
+COMMIT;
+SELECT val FROM sysver_with_history; --empty
+ val 
+-----
+(0 rows)
+
+-- We can't drop the the table without first dropping SYSTEM VERSIONING because
+-- Postgres will complain about dependant objects (our view functions) before
+-- we get a chance to clean them up.
+DROP TABLE sysver;
+ERROR:  cannot drop table sysver because other objects depend on it
+DETAIL:  view sysver_with_history depends on table sysver
+function sysver__as_of(timestamp with time zone) depends on type sysver_with_history
+function sysver__between(timestamp with time zone,timestamp with time zone) depends on type sysver_with_history
+function sysver__between_symmetric(timestamp with time zone,timestamp with time zone) depends on type sysver_with_history
+function sysver__from_to(timestamp with time zone,timestamp with time zone) depends on type sysver_with_history
+HINT:  Use DROP ... CASCADE to drop the dependent objects too.
+SELECT periods.drop_system_versioning('sysver', drop_behavior => 'CASCADE', purge => true);
+ drop_system_versioning 
+------------------------
+ t
+(1 row)
+
+TABLE periods.system_versioning;
+ table_name | period_name | history_table_name | view_name | func_as_of | func_between | func_between_symmetric | func_from_to 
+------------+-------------+--------------------+-----------+------------+--------------+------------------------+--------------
+(0 rows)
+
+DROP TABLE sysver;
+TABLE periods.periods;
+ table_name | period_name | start_column_name | end_column_name | range_type | bounds_check_constraint 
+------------+-------------+-------------------+-----------------+------------+-------------------------
+(0 rows)
+
+TABLE periods.system_time_periods;
+ table_name | period_name | infinity_check_constraint | generated_always_trigger | write_history_trigger | truncate_trigger 
+------------+-------------+---------------------------+--------------------------+-----------------------+------------------
+(0 rows)
+
