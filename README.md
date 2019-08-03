@@ -1,4 +1,4 @@
-# A `periods` Extension
+# Periods and `SYSTEM VERSIONING` for PostgreSQL
 
 [![License](https://img.shields.io/badge/license-PostgreSQL-blue)](https://www.postgresql.org/about/licence/)
 [![Code of Conduct](https://img.shields.io/badge/code%20of%20conduct-PostgreSQL-blueviolet)](https://www.postgresql.org/about/policies/coc/)
@@ -9,12 +9,13 @@
 
 *compatible 9.5–12*
 
-This extension attempts to recreate the behavior defined in SQL:2016
-(originally SQL:2011) around periods and tables with `SYSTEM
-VERSIONING`. The idea is to figure out all the rules that PostgreSQL
-would like to adopt (there are some details missing in the standard) and
-to allow earlier versions of PostgreSQL to simulate the behavior once
-the feature is finally integrated.
+This extension recreates the behavior defined in
+[SQL:2016](https://www.iso.org/standard/63556.html) (originally in
+SQL:2011) around periods and tables with `SYSTEM VERSIONING`. The idea
+is to figure out all the rules that PostgreSQL would like to adopt
+(there are some details missing in the standard) and to allow earlier
+versions of PostgreSQL to simulate the behavior once the feature is
+finally integrated.
 
 # What is a period?
 
@@ -320,3 +321,4 @@ The project would like extend special thanks to:
     and
   - [Mikhail Titov](https://github.com/mlt) for Appveyor and Windows
     support.
+
