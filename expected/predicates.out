@@ -1,0 +1,353 @@
+CREATE TABLE preds (s integer, e integer);
+SELECT periods.add_period('preds', 'p', 's', 'e');
+ add_period 
+------------
+ t
+(1 row)
+
+INSERT INTO preds (s, e) VALUES (100, 200);
+ANALYZE preds;
+/* Ensure the functions are inlined. */
+EXPLAIN (COSTS OFF) SELECT * FROM preds WHERE periods.contains(s, e, 100);
+              QUERY PLAN              
+--------------------------------------
+ Seq Scan on preds
+   Filter: ((s <= 100) AND (e > 100))
+(2 rows)
+
+EXPLAIN (COSTS OFF) SELECT * FROM preds WHERE periods.contains(s, e, 100, 200);
+              QUERY PLAN               
+---------------------------------------
+ Seq Scan on preds
+   Filter: ((s <= 100) AND (e >= 200))
+(2 rows)
+
+EXPLAIN (COSTS OFF) SELECT * FROM preds WHERE periods.equals(s, e, 100, 200);
+             QUERY PLAN              
+-------------------------------------
+ Seq Scan on preds
+   Filter: ((s = 100) AND (e = 200))
+(2 rows)
+
+EXPLAIN (COSTS OFF) SELECT * FROM preds WHERE periods.overlaps(s, e, 100, 200);
+             QUERY PLAN              
+-------------------------------------
+ Seq Scan on preds
+   Filter: ((s < 200) AND (e > 100))
+(2 rows)
+
+EXPLAIN (COSTS OFF) SELECT * FROM preds WHERE periods.precedes(s, e, 100, 200);
+      QUERY PLAN      
+----------------------
+ Seq Scan on preds
+   Filter: (e <= 100)
+(2 rows)
+
+EXPLAIN (COSTS OFF) SELECT * FROM preds WHERE periods.succeeds(s, e, 100, 200);
+      QUERY PLAN      
+----------------------
+ Seq Scan on preds
+   Filter: (s >= 200)
+(2 rows)
+
+EXPLAIN (COSTS OFF) SELECT * FROM preds WHERE periods.immediately_precedes(s, e, 100, 200);
+     QUERY PLAN      
+---------------------
+ Seq Scan on preds
+   Filter: (e = 100)
+(2 rows)
+
+EXPLAIN (COSTS OFF) SELECT * FROM preds WHERE periods.immediately_succeeds(s, e, 100, 200);
+     QUERY PLAN      
+---------------------
+ Seq Scan on preds
+   Filter: (s = 200)
+(2 rows)
+
+/* Now make sure they work! */
+SELECT * FROM preds WHERE periods.contains(s, e, 0);
+ s | e 
+---+---
+(0 rows)
+
+SELECT * FROM preds WHERE periods.contains(s, e, 150);
+  s  |  e  
+-----+-----
+ 100 | 200
+(1 row)
+
+SELECT * FROM preds WHERE periods.contains(s, e, 300);
+ s | e 
+---+---
+(0 rows)
+
+SELECT * FROM preds WHERE periods.contains(s, e, 0, 50);
+ s | e 
+---+---
+(0 rows)
+
+SELECT * FROM preds WHERE periods.contains(s, e, 50, 100);
+ s | e 
+---+---
+(0 rows)
+
+SELECT * FROM preds WHERE periods.contains(s, e, 100, 150);
+  s  |  e  
+-----+-----
+ 100 | 200
+(1 row)
+
+SELECT * FROM preds WHERE periods.contains(s, e, 150, 200);
+  s  |  e  
+-----+-----
+ 100 | 200
+(1 row)
+
+SELECT * FROM preds WHERE periods.contains(s, e, 200, 250);
+ s | e 
+---+---
+(0 rows)
+
+SELECT * FROM preds WHERE periods.contains(s, e, 250, 300);
+ s | e 
+---+---
+(0 rows)
+
+SELECT * FROM preds WHERE periods.contains(s, e, 125, 175);
+  s  |  e  
+-----+-----
+ 100 | 200
+(1 row)
+
+SELECT * FROM preds WHERE periods.contains(s, e, 0, 300);
+ s | e 
+---+---
+(0 rows)
+
+SELECT * FROM preds WHERE periods.equals(s, e, 0, 100);
+ s | e 
+---+---
+(0 rows)
+
+SELECT * FROM preds WHERE periods.equals(s, e, 100, 200);
+  s  |  e  
+-----+-----
+ 100 | 200
+(1 row)
+
+SELECT * FROM preds WHERE periods.equals(s, e, 200, 300);
+ s | e 
+---+---
+(0 rows)
+
+SELECT * FROM preds WHERE periods.overlaps(s, e, 0, 50);
+ s | e 
+---+---
+(0 rows)
+
+SELECT * FROM preds WHERE periods.overlaps(s, e, 50, 100);
+ s | e 
+---+---
+(0 rows)
+
+SELECT * FROM preds WHERE periods.overlaps(s, e, 100, 150);
+  s  |  e  
+-----+-----
+ 100 | 200
+(1 row)
+
+SELECT * FROM preds WHERE periods.overlaps(s, e, 150, 200);
+  s  |  e  
+-----+-----
+ 100 | 200
+(1 row)
+
+SELECT * FROM preds WHERE periods.overlaps(s, e, 200, 250);
+ s | e 
+---+---
+(0 rows)
+
+SELECT * FROM preds WHERE periods.overlaps(s, e, 250, 300);
+ s | e 
+---+---
+(0 rows)
+
+SELECT * FROM preds WHERE periods.overlaps(s, e, 125, 175);
+  s  |  e  
+-----+-----
+ 100 | 200
+(1 row)
+
+SELECT * FROM preds WHERE periods.overlaps(s, e, 0, 300);
+  s  |  e  
+-----+-----
+ 100 | 200
+(1 row)
+
+SELECT * FROM preds WHERE periods.precedes(s, e, 0, 50);
+ s | e 
+---+---
+(0 rows)
+
+SELECT * FROM preds WHERE periods.precedes(s, e, 50, 100);
+ s | e 
+---+---
+(0 rows)
+
+SELECT * FROM preds WHERE periods.precedes(s, e, 100, 150);
+ s | e 
+---+---
+(0 rows)
+
+SELECT * FROM preds WHERE periods.precedes(s, e, 150, 200);
+ s | e 
+---+---
+(0 rows)
+
+SELECT * FROM preds WHERE periods.precedes(s, e, 200, 250);
+  s  |  e  
+-----+-----
+ 100 | 200
+(1 row)
+
+SELECT * FROM preds WHERE periods.precedes(s, e, 250, 300);
+  s  |  e  
+-----+-----
+ 100 | 200
+(1 row)
+
+SELECT * FROM preds WHERE periods.precedes(s, e, 125, 175);
+ s | e 
+---+---
+(0 rows)
+
+SELECT * FROM preds WHERE periods.precedes(s, e, 0, 300);
+ s | e 
+---+---
+(0 rows)
+
+SELECT * FROM preds WHERE periods.succeeds(s, e, 0, 50);
+  s  |  e  
+-----+-----
+ 100 | 200
+(1 row)
+
+SELECT * FROM preds WHERE periods.succeeds(s, e, 50, 100);
+  s  |  e  
+-----+-----
+ 100 | 200
+(1 row)
+
+SELECT * FROM preds WHERE periods.succeeds(s, e, 100, 150);
+ s | e 
+---+---
+(0 rows)
+
+SELECT * FROM preds WHERE periods.succeeds(s, e, 150, 200);
+ s | e 
+---+---
+(0 rows)
+
+SELECT * FROM preds WHERE periods.succeeds(s, e, 200, 250);
+ s | e 
+---+---
+(0 rows)
+
+SELECT * FROM preds WHERE periods.succeeds(s, e, 250, 300);
+ s | e 
+---+---
+(0 rows)
+
+SELECT * FROM preds WHERE periods.succeeds(s, e, 125, 175);
+ s | e 
+---+---
+(0 rows)
+
+SELECT * FROM preds WHERE periods.succeeds(s, e, 0, 300);
+ s | e 
+---+---
+(0 rows)
+
+SELECT * FROM preds WHERE periods.immediately_precedes(s, e, 0, 50);
+ s | e 
+---+---
+(0 rows)
+
+SELECT * FROM preds WHERE periods.immediately_precedes(s, e, 50, 100);
+ s | e 
+---+---
+(0 rows)
+
+SELECT * FROM preds WHERE periods.immediately_precedes(s, e, 100, 150);
+ s | e 
+---+---
+(0 rows)
+
+SELECT * FROM preds WHERE periods.immediately_precedes(s, e, 150, 200);
+ s | e 
+---+---
+(0 rows)
+
+SELECT * FROM preds WHERE periods.immediately_precedes(s, e, 200, 250);
+  s  |  e  
+-----+-----
+ 100 | 200
+(1 row)
+
+SELECT * FROM preds WHERE periods.immediately_precedes(s, e, 250, 300);
+ s | e 
+---+---
+(0 rows)
+
+SELECT * FROM preds WHERE periods.immediately_precedes(s, e, 125, 175);
+ s | e 
+---+---
+(0 rows)
+
+SELECT * FROM preds WHERE periods.immediately_precedes(s, e, 0, 300);
+ s | e 
+---+---
+(0 rows)
+
+SELECT * FROM preds WHERE periods.immediately_succeeds(s, e, 0, 50);
+ s | e 
+---+---
+(0 rows)
+
+SELECT * FROM preds WHERE periods.immediately_succeeds(s, e, 50, 100);
+  s  |  e  
+-----+-----
+ 100 | 200
+(1 row)
+
+SELECT * FROM preds WHERE periods.immediately_succeeds(s, e, 100, 150);
+ s | e 
+---+---
+(0 rows)
+
+SELECT * FROM preds WHERE periods.immediately_succeeds(s, e, 150, 200);
+ s | e 
+---+---
+(0 rows)
+
+SELECT * FROM preds WHERE periods.immediately_succeeds(s, e, 200, 250);
+ s | e 
+---+---
+(0 rows)
+
+SELECT * FROM preds WHERE periods.immediately_succeeds(s, e, 250, 300);
+ s | e 
+---+---
+(0 rows)
+
+SELECT * FROM preds WHERE periods.immediately_succeeds(s, e, 125, 175);
+ s | e 
+---+---
+(0 rows)
+
+SELECT * FROM preds WHERE periods.immediately_succeeds(s, e, 0, 300);
+ s | e 
+---+---
+(0 rows)
+
+DROP TABLE preds;

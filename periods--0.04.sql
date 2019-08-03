@@ -2936,3 +2936,78 @@ END;
 $function$;
 
 CREATE EVENT TRIGGER periods_health_checks ON ddl_command_end EXECUTE PROCEDURE periods.health_checks();
+
+/* Predicates */
+
+CREATE FUNCTION periods.contains(sv1 anyelement, ev1 anyelement, ve anyelement)
+ RETURNS boolean
+ LANGUAGE sql
+ IMMUTABLE
+AS
+$function$
+    SELECT sv1 <= ve AND ev1 > ve;
+$function$;
+
+CREATE FUNCTION periods.contains(sv1 anyelement, ev1 anyelement, sv2 anyelement, ev2 anyelement)
+ RETURNS boolean
+ LANGUAGE sql
+ IMMUTABLE
+AS
+$function$
+    SELECT sv1 <= sv2 AND ev1 >= ev2;
+$function$;
+
+CREATE FUNCTION periods.equals(sv1 anyelement, ev1 anyelement, sv2 anyelement, ev2 anyelement)
+ RETURNS boolean
+ LANGUAGE sql
+ IMMUTABLE
+AS
+$function$
+    SELECT sv1 = sv2 AND ev1 = ev2;
+$function$;
+
+CREATE FUNCTION periods.overlaps(sv1 anyelement, ev1 anyelement, sv2 anyelement, ev2 anyelement)
+ RETURNS boolean
+ LANGUAGE sql
+ IMMUTABLE
+AS
+$function$
+    SELECT sv1 < ev2 AND ev1 > sv2;
+$function$;
+
+CREATE FUNCTION periods.precedes(sv1 anyelement, ev1 anyelement, sv2 anyelement, ev2 anyelement)
+ RETURNS boolean
+ LANGUAGE sql
+ IMMUTABLE
+AS
+$function$
+    SELECT ev1 <= sv2;
+$function$;
+
+CREATE FUNCTION periods.succeeds(sv1 anyelement, ev1 anyelement, sv2 anyelement, ev2 anyelement)
+ RETURNS boolean
+ LANGUAGE sql
+ IMMUTABLE
+AS
+$function$
+    SELECT sv1 >= ev2;
+$function$;
+
+CREATE FUNCTION periods.immediately_precedes(sv1 anyelement, ev1 anyelement, sv2 anyelement, ev2 anyelement)
+ RETURNS boolean
+ LANGUAGE sql
+ IMMUTABLE
+AS
+$function$
+    SELECT ev1 = sv2;
+$function$;
+
+CREATE FUNCTION periods.immediately_succeeds(sv1 anyelement, ev1 anyelement, sv2 anyelement, ev2 anyelement)
+ RETURNS boolean
+ LANGUAGE sql
+ IMMUTABLE
+AS
+$function$
+    SELECT sv1 = ev2;
+$function$;
+

@@ -151,8 +151,39 @@ We see no way to simulate deleting portions of periods, alas.
 
 ## Predicates
 
-None of the predicates provided by the SQL standard are implemented
-here. You can use the range type operators instead.
+The SQL standard provides for several predicates on periods. We have
+implemented them as inlined functions for the sake of completeness but
+they require specifying the start and end column names instead of the
+period name.
+
+``` sql
+-- "t" and "u" are tables with respective periods "p" and "q".
+-- Both periods have underlying columns "s" and "e".
+
+WHERE t.p CONTAINS 42
+WHERE periods.contains(t.s, t.e, 42)
+
+WHERE t.p CONTAINS u.q
+WHERE periods.contains(t.s, t.e, u.s, u.e)
+
+WHERE t.p EQUALS u.q
+WHERE periods.equals(t.s, t.e, u.s, u.e)
+
+WHERE t.p OVERLAPS u.q
+WHERE periods.overlaps(t.s, t.e, u.s, u.e)
+
+WHERE t.p PRECEDES u.q
+WHERE periods.precedes(t.s, t.e, u.s, u.e)
+
+WHERE t.p SUCCEEDS u.q
+WHERE periods.succeeds(t.s, t.e, u.s, u.e)
+
+WHERE t.p IMMEDIATELY PRECEDES u.q
+WHERE periods.immediately_precedes(t.s, t.e, u.s, u.e)
+
+WHERE t.p IMMEDIATELY SUCCEEDS u.q
+WHERE periods.immediately_succeeds(t.s, t.e, u.s, u.e)
+```
 
 # System-versioned tables
 

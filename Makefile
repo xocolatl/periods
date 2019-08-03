@@ -9,6 +9,7 @@ REGRESS = install \
 		  system_versioning \
 		  unique_foreign \
 		  for_portion_of \
+		  predicates \
 		  drop_protection \
 		  rename_following \
 		  health_checks \
