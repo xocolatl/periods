@@ -1116,19 +1116,22 @@ BEGIN
         INTO generated_columns
         USING table_name;
 
-        IF SERVER_VERSION < 100000 THEN
-            SELECT jsonb_object_agg(e.key, e.value)
-            INTO pre_row
-            FROM jsonb_each(pre_row) AS e (key, value)
-            WHERE e.key <> ALL (generated_columns);
+        /* There may not be any generated columns. */
+        IF generated_columns IS NOT NULL THEN
+            IF SERVER_VERSION < 100000 THEN
+                SELECT jsonb_object_agg(e.key, e.value)
+                INTO pre_row
+                FROM jsonb_each(pre_row) AS e (key, value)
+                WHERE e.key <> ALL (generated_columns);
 
-            SELECT jsonb_object_agg(e.key, e.value)
-            INTO post_row
-            FROM jsonb_each(post_row) AS e (key, value)
-            WHERE e.key <> ALL (generated_columns);
-        ELSE
-            pre_row := pre_row - generated_columns;
-            post_row := post_row - generated_columns;
+                SELECT jsonb_object_agg(e.key, e.value)
+                INTO post_row
+                FROM jsonb_each(post_row) AS e (key, value)
+                WHERE e.key <> ALL (generated_columns);
+            ELSE
+                pre_row := pre_row - generated_columns;
+                post_row := post_row - generated_columns;
+            END IF;
         END IF;
     END IF;
 
