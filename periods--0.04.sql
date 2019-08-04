@@ -1077,6 +1077,11 @@ BEGIN
     new_row := jsonb_set(new_row, ARRAY[period_row.start_column_name], bstartval);
     new_row := jsonb_set(new_row, ARRAY[period_row.end_column_name], bendval);
 
+    /* If the period is the only thing changed, do nothing */
+    IF new_row = jold THEN
+        RETURN NULL;
+    END IF;
+
     pre_assigned := false;
     EXECUTE format(TEST_SQL, datatype, bstartval, fromval, bendval) INTO test;
     IF test THEN
