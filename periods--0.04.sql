@@ -1136,7 +1136,7 @@ BEGIN
         EXECUTE format('INSERT INTO %s (%s) VALUES (%s)',
             table_name,
             (SELECT string_agg(quote_ident(key), ', ' ORDER BY key) FROM jsonb_each_text(pre_row)),
-            (SELECT string_agg(quote_literal(value), ', ' ORDER BY key) FROM jsonb_each_text(pre_row)));
+            (SELECT string_agg(quote_nullable(value), ', ' ORDER BY key) FROM jsonb_each_text(pre_row)));
     END IF;
 
     EXECUTE format('UPDATE %s SET %s WHERE %s AND %I > %L AND %I < %L',
@@ -1147,10 +1147,13 @@ BEGIN
                           SELECT key, value FROM jsonb_each_text(jold)
                          ) AS j
                    ),
-                   (SELECT format('(%s) = (%s)',
-                                  string_agg(quote_ident(key), ', ' ORDER BY key),
-                                  string_agg(quote_literal(value), ', ' ORDER BY key))
+                   (SELECT string_agg(
+                        CASE WHEN value IS NOT NULL
+                             THEN format('%I = %L', key, value)
+                             ELSE format('%I IS NULL', key)
+                        END, ' AND ')
                     FROM jsonb_each_text(jold) AS j
+                    WHERE key NOT IN (period_row.start_column_name, period_row.end_column_name)
                    ),
                    period_row.end_column_name,
                    fromval,
@@ -1162,7 +1165,7 @@ BEGIN
         EXECUTE format('INSERT INTO %s (%s) VALUES (%s)',
             table_name,
             (SELECT string_agg(quote_ident(key), ', ' ORDER BY key) FROM jsonb_each_text(post_row)),
-            (SELECT string_agg(quote_literal(value), ', ' ORDER BY key) FROM jsonb_each_text(post_row)));
+            (SELECT string_agg(quote_nullable(value), ', ' ORDER BY key) FROM jsonb_each_text(post_row)));
     END IF;
 
     RETURN NEW;

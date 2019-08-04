@@ -46,3 +46,22 @@ DROP TABLE pricing;
 SELECT periods.drop_for_portion_view('pricing', NULL);
 TABLE periods.for_portion_views;
 DROP TABLE pricing;
+
+/* Make sure we handle nulls correctly */
+CREATE TABLE portions (col1 text, col2 text, col3 text, s integer, e integer);
+SELECT periods.add_period('portions', 'p', 's', 'e');
+SELECT periods.add_for_portion_view('portions', 'p');
+
+INSERT INTO portions VALUES
+    ('a', 'b', 'c', 100, 200),
+    ('a', null, 'c', 100, 200),
+    (null, null, 'c', 100, 200);
+
+TABLE portions ORDER BY col1, col2, s, e;
+UPDATE portions__for_portion_of_p SET s = 125, e = 175;
+TABLE portions ORDER BY col1, col2, s, e;
+UPDATE portions__for_portion_of_p SET col3 = 'd', s = 125, e = 175;
+TABLE portions ORDER BY col1, col2, s, e;
+
+SELECT periods.drop_for_portion_view('portions', NULL);
+DROP TABLE portions;
