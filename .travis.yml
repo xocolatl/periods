@@ -1,27 +1,4 @@
-addons:
-  apt:
-    sources:
-    - sourceline: "deb http://apt.postgresql.org/pub/repos/apt/ xenial-pgdg main 12"
-      key_url: "https://www.postgresql.org/media/keys/ACCC4CF8.asc"
-    - sourceline: "deb http://apt.postgresql.org/pub/repos/apt/ xenial-pgdg-testing main 12"
-      key_url: "https://www.postgresql.org/media/keys/ACCC4CF8.asc"
-
-before_install:
-  - sudo /etc/init.d/postgresql stop
-  - sudo apt-get -y --purge remove postgresql libpq-dev libpq5 postgresql-client-common postgresql-common
-  - sudo rm -rf /var/lib/postgresql
-  - sudo apt-get update -qq
-  - sudo apt-get -y -o Dpkg::Options::=--force-confdef -o Dpkg::Options::="--force-confnew" ${PGREPO:+-t "$PGREPO"} install postgresql-${PG:?} postgresql-server-dev-${PG:?} postgresql-contrib-${PG:?}
-
-env:
-  matrix:
-    - PG=9.5
-    - PG=9.6
-    - PG=10
-    - PG=11
-    - PG=12 PGREPO=xenial-pgdg-testing
-
-dist: xenial
+dist: bionic
 
 sudo: required
 
@@ -29,6 +6,25 @@ language: c
 
 compiler:
   - gcc
+
+env:
+  matrix:
+    - PG=12 COMPONENT=12
+    - PG=11
+    - PG=10
+    - PG=9.6
+    - PG=9.5
+
+before_install:
+  - sudo /etc/init.d/postgresql stop
+  - sudo apt-get -y --purge remove postgresql libpq-dev libpq5 postgresql-client-common postgresql-common
+  - sudo rm -rf /var/lib/postgresql
+  - |
+    if [ "$COMPONENT" ]; then
+      sudo sed -i -e "s/main/main $COMPONENT/" /etc/apt/sources.list.d/pgdg*.list
+    fi
+  - sudo apt-get update
+  - sudo apt-get -y -o Dpkg::Options::=--force-confdef -o Dpkg::Options::="--force-confnew" ${PGREPO:+-t "$PGREPO"} install postgresql-${PG:?} postgresql-server-dev-${PG:?} postgresql-contrib-${PG:?}
 
 before_script:
   - sudo -u postgres createuser -s "$USER"
