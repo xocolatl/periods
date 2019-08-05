@@ -24,6 +24,8 @@ columns. The period’s name cannot be the same as any column name of the
 table.
 
 ``` sql
+-- Standard SQL
+
 CREATE TABLE example (
     id bigint,
     start_date date,
@@ -55,6 +57,8 @@ SELECT periods.add_period('example', 'validity', 'start_date', 'end_date');
 Periods may be part of `PRIMARY KEY`s and `UNIQUE` constraints.
 
 ``` sql
+-- Standard SQL
+
 CREATE TABLE example (
     id bigint,
     start_date date,
@@ -81,6 +85,8 @@ part of the constraint. The function also takes optional parameters if
 you already have such a constraint that you would like to use.
 
 ``` sql
+-- Standard SQL
+
 CREATE TABLE example (
     id bigint,
     start_date date,
@@ -124,6 +130,8 @@ updated or deleted. Yes, that means a simple `DELETE` statement can
 actually `INSERT` rows\!
 
 ``` sql
+-- Standard SQL
+
 UPDATE example
 FOR PORTION OF validity FROM '...' TO '...'
 SET ...
@@ -158,6 +166,8 @@ they require specifying the start and end column names instead of the
 period name.
 
 ``` sql
+-- Standard SQL and this extension's equivalent
+
 -- "t" and "u" are tables with respective periods "p" and "q".
 -- Both periods have underlying columns "s" and "e".
 
@@ -204,6 +214,8 @@ even just Daylight Savings Time changes can distort the history. Even
 when only using UTC, we recommend the `timestamp with time zone` type.
 
 ``` sql
+-- Standard SQL
+
 CREATE TABLE example (
     id bigint PRIMARY KEY,
     value text,
@@ -230,6 +242,8 @@ This special `SYSTEM_TIME` period can be used to keep track of changes
 in the table.
 
 ``` sql
+-- Standard SQL
+
 CREATE TABLE example (
     id bigint PRIMARY KEY,
     value text,
@@ -259,6 +273,8 @@ specifying a point in time, or even a range of time (shall we say a
 tables and so this extension implements them through inlined functions.
 
 ``` sql
+-- Standard SQL and this extension's equivalent
+
 SELECT * FROM t FOR system_time AS OF '...';
 SELECT * FROM t__as_of('...');
 
