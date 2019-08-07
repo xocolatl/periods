@@ -2,14 +2,23 @@ SELECT setting::integer < 100000 AS pre_10,
        setting::integer < 120000 AS pre_12
 FROM pg_settings WHERE name = 'server_version_num';
 
+/*
+ * Create a sequence to test non-serial primary keys.  This actually tests
+ * things like uuid primary keys, but makes for reproducible test cases.
+ */
+CREATE SEQUENCE pricing_seq;
+
 CREATE TABLE pricing (id1 bigserial,
-                      id2 bigint GENERATED ALWAYS AS IDENTITY,
-                      id3 bigint GENERATED ALWAYS AS (id1 + id2) STORED,
+                      id2 bigint PRIMARY KEY DEFAULT nextval('pricing_seq'),
+                      id3 bigint GENERATED ALWAYS AS IDENTITY,
+                      id4 bigint GENERATED ALWAYS AS (id1 + id2) STORED,
                       product text, min_quantity integer, max_quantity integer, price numeric);
 CREATE TABLE pricing (id1 bigserial,
-                      id2 bigint GENERATED ALWAYS AS IDENTITY,
+                      id2 bigint PRIMARY KEY DEFAULT nextval('pricing_seq'),
+                      id3 bigint GENERATED ALWAYS AS IDENTITY,
                       product text, min_quantity integer, max_quantity integer, price numeric);
 CREATE TABLE pricing (id1 bigserial,
+                      id2 bigint PRIMARY KEY DEFAULT nextval('pricing_seq'),
                       product text, min_quantity integer, max_quantity integer, price numeric);
 SELECT periods.add_period('pricing', 'quantities', 'min_quantity', 'max_quantity');
 SELECT periods.add_for_portion_view('pricing', 'quantities');
@@ -46,6 +55,7 @@ DROP TABLE pricing;
 SELECT periods.drop_for_portion_view('pricing', NULL);
 TABLE periods.for_portion_views;
 DROP TABLE pricing;
+DROP SEQUENCE pricing_seq;
 
 /* Make sure we handle nulls correctly */
 CREATE TABLE portions (col1 text, col2 text, col3 text, s integer, e integer);

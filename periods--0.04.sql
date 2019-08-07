@@ -1014,7 +1014,14 @@ DECLARE
         'WHERE a.attrelid = $1 '
         '  AND a.attnum > 0 '
         '  AND NOT a.attisdropped '
-        '  AND pg_catalog.pg_get_serial_sequence(a.attrelid::regclass::text, a.attname) IS NOT NULL';
+        '  AND (pg_catalog.pg_get_serial_sequence(a.attrelid::regclass::text, a.attname) IS NOT NULL '
+        '    OR EXISTS (SELECT FROM pg_catalog.pg_constraint AS _c '
+        '               WHERE _c.conrelid = a.attrelid '
+        '                 AND _c.contype = ''p'' '
+        '                 AND _c.conkey @> ARRAY[a.attnum]) '
+        '    OR EXISTS (SELECT FROM periods.periods AS _p '
+        '               WHERE (_p.table_name, _p.period_name) = (a.attrelid, ''system_time'') '
+        '                 AND a.attname IN (_p.start_column_name, _p.end_column_name)))';
 
     GENERATED_COLUMNS_SQL_PRE_12 CONSTANT text :=
         'SELECT array_agg(a.attname) '
@@ -1023,7 +1030,14 @@ DECLARE
         '  AND a.attnum > 0 '
         '  AND NOT a.attisdropped '
         '  AND (pg_catalog.pg_get_serial_sequence(a.attrelid::regclass::text, a.attname) IS NOT NULL '
-        '    OR a.attidentity <> '''')';
+        '    OR a.attidentity <> '''' '
+        '    OR EXISTS (SELECT FROM pg_catalog.pg_constraint AS _c '
+        '               WHERE _c.conrelid = a.attrelid '
+        '                 AND _c.contype = ''p'' '
+        '                 AND _c.conkey @> ARRAY[a.attnum]) '
+        '    OR EXISTS (SELECT FROM periods.periods AS _p '
+        '               WHERE (_p.table_name, _p.period_name) = (a.attrelid, ''system_time'') '
+        '                 AND a.attname IN (_p.start_column_name, _p.end_column_name)))';
 
     GENERATED_COLUMNS_SQL_CURRENT CONSTANT text :=
         'SELECT array_agg(a.attname) '
@@ -1033,7 +1047,14 @@ DECLARE
         '  AND NOT a.attisdropped '
         '  AND (pg_catalog.pg_get_serial_sequence(a.attrelid::regclass::text, a.attname) IS NOT NULL '
         '    OR a.attidentity <> '''' '
-        '    OR a.attgenerated <> '''')';
+        '    OR a.attgenerated <> '''' '
+        '    OR EXISTS (SELECT FROM pg_catalog.pg_constraint AS _c '
+        '               WHERE _c.conrelid = a.attrelid '
+        '                 AND _c.contype = ''p'' '
+        '                 AND _c.conkey @> ARRAY[a.attnum]) '
+        '    OR EXISTS (SELECT FROM periods.periods AS _p '
+        '               WHERE (_p.table_name, _p.period_name) = (a.attrelid, ''system_time'') '
+        '                 AND a.attname IN (_p.start_column_name, _p.end_column_name)))';
 
 BEGIN
     /*
@@ -1104,10 +1125,16 @@ BEGIN
 
         /*
          * Find and remove all generated columns from pre_row and post_row.
+         * SQL:2016 15.13 GR 10)b)i)
          *
-         * We'll also be nice to legacy people and remove columns that own a
-         * sequence.  We do not, however, remove columns that default to
-         * nextval() without owning the underlying sequence.
+         * We also remove columns that own a sequence as those are a form of
+         * generated column.  We do not, however, remove columns that default
+         * to nextval() without owning the underlying sequence.
+         *
+         * Columns belonging to a SYSTEM_TIME period are also removed.
+         *
+         * In addition to what the standard calls for, we also remove any
+         * columns belonging to primary keys.
          */
         IF SERVER_VERSION < 100000 THEN
             generated_columns_sql := GENERATED_COLUMNS_SQL_PRE_10;
