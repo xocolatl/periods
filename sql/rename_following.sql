@@ -30,11 +30,13 @@ ALTER TRIGGER rename_test_truncate ON rename_test RENAME TO trunc;
 TABLE periods.system_time_periods;
 
 /* for_portion_views */
+ALTER TABLE rename_test ADD COLUMN id integer PRIMARY KEY;
 SELECT periods.add_for_portion_view('rename_test', 'p');
 TABLE periods.for_portion_views;
 ALTER TRIGGER for_portion_of_p ON rename_test__for_portion_of_p RENAME TO portion_trigger;
 TABLE periods.for_portion_views;
 SELECT periods.drop_for_portion_view('rename_test', 'p');
+ALTER TABLE rename_test DROP COLUMN id;
 
 /* unique_keys */
 SELECT periods.add_unique_key('rename_test', ARRAY['col2', 'col1', 'col3'], 'p');

@@ -57,21 +57,30 @@ TABLE periods.for_portion_views;
 DROP TABLE pricing;
 DROP SEQUENCE pricing_seq;
 
-/* Make sure we handle nulls correctly */
-CREATE TABLE portions (col1 text, col2 text, col3 text, s integer, e integer);
-SELECT periods.add_period('portions', 'p', 's', 'e');
-SELECT periods.add_for_portion_view('portions', 'p');
+/* Types without btree must be excluded, too */
+-- v10+
+CREATE TABLE bt (
+    id integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+    pt point,   -- something without btree
+    t text,     -- something with btree
+    s integer,
+    e integer
+);
+-- pre v10
+CREATE TABLE bt (
+    id serial PRIMARY KEY,
+    pt point,   -- something without btree
+    t text,     -- something with btree
+    s integer,
+    e integer
+);
+SELECT periods.add_period('bt', 'p', 's', 'e');
+SELECT periods.add_for_portion_view('bt', 'p');
 
-INSERT INTO portions VALUES
-    ('a', 'b', 'c', 100, 200),
-    ('a', null, 'c', 100, 200),
-    (null, null, 'c', 100, 200);
+INSERT INTO bt (pt, t, s, e) VALUES ('(0, 0)', 'sample', 10, 40);
+TABLE bt ORDER BY s, e;
+UPDATE bt__for_portion_of_p SET t = 'simple', s = 20, e = 30;
+TABLE bt ORDER BY s, e;
 
-TABLE portions ORDER BY col1, col2, s, e;
-UPDATE portions__for_portion_of_p SET s = 125, e = 175;
-TABLE portions ORDER BY col1, col2, s, e;
-UPDATE portions__for_portion_of_p SET col3 = 'd', s = 125, e = 175;
-TABLE portions ORDER BY col1, col2, s, e;
-
-SELECT periods.drop_for_portion_view('portions', NULL);
-DROP TABLE portions;
+SELECT periods.drop_for_portion_view('bt', 'p');
+DROP TABLE bt;

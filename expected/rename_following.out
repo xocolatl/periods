@@ -76,6 +76,7 @@ TABLE periods.system_time_periods;
 (1 row)
 
 /* for_portion_views */
+ALTER TABLE rename_test ADD COLUMN id integer PRIMARY KEY;
 SELECT periods.add_for_portion_view('rename_test', 'p');
  add_for_portion_view 
 ----------------------
@@ -101,6 +102,7 @@ SELECT periods.drop_for_portion_view('rename_test', 'p');
  t
 (1 row)
 
+ALTER TABLE rename_test DROP COLUMN id;
 /* unique_keys */
 SELECT periods.add_unique_key('rename_test', ARRAY['col2', 'col1', 'col3'], 'p');
  add_unique_key 

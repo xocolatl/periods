@@ -22,10 +22,13 @@ DROP TRIGGER dp_system_time_write_history ON dp; -- fails
 DROP TRIGGER dp_truncate ON dp; -- fails
 
 /* for_portion_views */
+ALTER TABLE dp ADD CONSTRAINT dp_pkey PRIMARY KEY (id);
 SELECT periods.add_for_portion_view('dp', 'p');
 DROP VIEW dp__for_portion_of_p;
 DROP TRIGGER for_portion_of_p ON dp__for_portion_of_p;
+ALTER TABLE dp DROP CONSTRAINT dp_pkey;
 SELECT periods.drop_for_portion_view('dp', 'p');
+ALTER TABLE dp DROP CONSTRAINT dp_pkey;
 
 /* unique_keys */
 ALTER TABLE dp

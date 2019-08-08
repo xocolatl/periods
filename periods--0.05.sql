@@ -908,6 +908,21 @@ BEGIN
     /* Always serialize operations on our catalogs */
     PERFORM pg_advisory_xact_lock('periods.periods'::regclass::oid::integer, table_name::oid::integer);
 
+    /*
+     * We require the table to have a primary key, so check to see if there is
+     * one.  This requires a lock on the table so no one removes it after we
+     * check and before we commit.
+     */
+    EXECUTE format('LOCK TABLE %s IN ACCESS SHARE MODE', table_name);
+
+    /* Now check for the primary key */
+    IF NOT EXISTS (
+        SELECT FROM pg_catalog.pg_constraint AS c
+        WHERE (c.conrelid, c.contype) = (table_name, 'p'))
+    THEN
+        RAISE EXCEPTION 'table "%" must have a primary key', table_name;
+    END IF;
+
     FOR r IN
         SELECT n.nspname AS schema_name, c.relname AS table_name, p.period_name
         FROM periods.periods AS p
@@ -980,10 +995,7 @@ AS
 $function$
 #variable_conflict use_variable
 DECLARE
-    period_row periods.periods;
-    table_name regclass;
-    period_name name;
-    datatype text;
+    info record;
     test boolean;
     generated_columns_sql text;
     generated_columns text[];
@@ -1062,41 +1074,35 @@ BEGIN
      *     SQL:2016 15.13 GR 10
      */
 
-    /* Get the table and period names from this view */
-    SELECT fpv.table_name, fpv.period_name
-    INTO table_name, period_name
+    /* Get the table information from this view */
+    SELECT p.table_name, p.period_name,
+           p.start_column_name, p.end_column_name,
+           format_type(a.atttypid, a.atttypmod) AS datatype
+    INTO info
     FROM periods.for_portion_views AS fpv
+    JOIN periods.periods AS p ON (p.table_name, p.period_name) = (fpv.table_name, fpv.period_name)
+    JOIN pg_catalog.pg_attribute AS a ON (a.attrelid, a.attname) = (p.table_name, p.start_column_name)
     WHERE fpv.view_name = TG_RELID;
 
     IF NOT FOUND THEN
-        RAISE EXCEPTION 'table and period not found for view "%"', TG_RELID::regclass;
+        RAISE EXCEPTION 'table and period information not found for view "%"', TG_RELID::regclass;
     END IF;
 
-    SELECT p.*
-    INTO period_row
-    FROM periods.periods AS p
-    WHERE (p.table_name, p.period_name) = (table_name, period_name);
-
-    SELECT format_type(a.atttypid, a.atttypmod)
-    INTO datatype
-    FROM pg_attribute AS a
-    WHERE (a.attrelid, a.attname) = (table_name, period_row.start_column_name);
-
     jnew := row_to_json(NEW);
-    fromval := jnew->period_row.start_column_name;
-    toval := jnew->period_row.end_column_name;
+    fromval := jnew->info.start_column_name;
+    toval := jnew->info.end_column_name;
 
     jold := row_to_json(OLD);
-    bstartval := jold->period_row.start_column_name;
-    bendval := jold->period_row.end_column_name;
+    bstartval := jold->info.start_column_name;
+    bendval := jold->info.end_column_name;
 
     pre_row := jold;
     new_row := jnew;
     post_row := jold;
 
     /* Reset the period columns */
-    new_row := jsonb_set(new_row, ARRAY[period_row.start_column_name], bstartval);
-    new_row := jsonb_set(new_row, ARRAY[period_row.end_column_name], bendval);
+    new_row := jsonb_set(new_row, ARRAY[info.start_column_name], bstartval);
+    new_row := jsonb_set(new_row, ARRAY[info.end_column_name], bendval);
 
     /* If the period is the only thing changed, do nothing */
     IF new_row = jold THEN
@@ -1104,19 +1110,19 @@ BEGIN
     END IF;
 
     pre_assigned := false;
-    EXECUTE format(TEST_SQL, datatype, bstartval, fromval, bendval) INTO test;
+    EXECUTE format(TEST_SQL, info.datatype, bstartval, fromval, bendval) INTO test;
     IF test THEN
         pre_assigned := true;
-        pre_row := jsonb_set(pre_row, ARRAY[period_row.end_column_name], fromval);
-        new_row := jsonb_set(new_row, ARRAY[period_row.start_column_name], fromval);
+        pre_row := jsonb_set(pre_row, ARRAY[info.end_column_name], fromval);
+        new_row := jsonb_set(new_row, ARRAY[info.start_column_name], fromval);
     END IF;
 
     post_assigned := false;
-    EXECUTE format(TEST_SQL, datatype, bstartval, toval, bendval) INTO test;
+    EXECUTE format(TEST_SQL, info.datatype, bstartval, toval, bendval) INTO test;
     IF test THEN
         post_assigned := true;
-        new_row := jsonb_set(new_row, ARRAY[period_row.end_column_name], toval::jsonb);
-        post_row := jsonb_set(post_row, ARRAY[period_row.start_column_name], toval::jsonb);
+        new_row := jsonb_set(new_row, ARRAY[info.end_column_name], toval::jsonb);
+        post_row := jsonb_set(post_row, ARRAY[info.start_column_name], toval::jsonb);
     END IF;
 
     IF pre_assigned OR post_assigned THEN
@@ -1146,7 +1152,7 @@ BEGIN
 
         EXECUTE generated_columns_sql
         INTO generated_columns
-        USING table_name;
+        USING info.table_name;
 
         /* There may not be any generated columns. */
         IF generated_columns IS NOT NULL THEN
@@ -1169,36 +1175,35 @@ BEGIN
 
     IF pre_assigned THEN
         EXECUTE format('INSERT INTO %s (%s) VALUES (%s)',
-            table_name,
+            info.table_name,
             (SELECT string_agg(quote_ident(key), ', ' ORDER BY key) FROM jsonb_each_text(pre_row)),
             (SELECT string_agg(quote_nullable(value), ', ' ORDER BY key) FROM jsonb_each_text(pre_row)));
     END IF;
 
     EXECUTE format('UPDATE %s SET %s WHERE %s AND %I > %L AND %I < %L',
-                   table_name,
+                   info.table_name,
                    (SELECT string_agg(format('%I = %L', j.key, j.value), ', ')
                     FROM (SELECT key, value FROM jsonb_each_text(new_row)
                           EXCEPT ALL
                           SELECT key, value FROM jsonb_each_text(jold)
                          ) AS j
                    ),
-                   (SELECT string_agg(
-                        CASE WHEN value IS NOT NULL
-                             THEN format('%I = %L', key, value)
-                             ELSE format('%I IS NULL', key)
-                        END, ' AND ')
-                    FROM jsonb_each_text(jold) AS j
-                    WHERE key NOT IN (period_row.start_column_name, period_row.end_column_name)
+                   (SELECT string_agg(format('%I = %L', key, value), ' AND ')
+                    FROM pg_catalog.jsonb_each_text(jold) AS j
+                    JOIN pg_catalog.pg_attribute AS a ON a.attname = j.key
+                    JOIN pg_catalog.pg_constraint AS c ON c.conkey @> ARRAY[a.attnum]
+                    WHERE a.attrelid = info.table_name
+                      AND c.conrelid = info.table_name
                    ),
-                   period_row.end_column_name,
+                   info.end_column_name,
                    fromval,
-                   period_row.start_column_name,
+                   info.start_column_name,
                    toval
                   );
 
     IF post_assigned THEN
         EXECUTE format('INSERT INTO %s (%s) VALUES (%s)',
-            table_name,
+            info.table_name,
             (SELECT string_agg(quote_ident(key), ', ' ORDER BY key) FROM jsonb_each_text(post_row)),
             (SELECT string_agg(quote_nullable(value), ', ' ORDER BY key) FROM jsonb_each_text(post_row)));
     END IF;
@@ -2565,6 +2570,18 @@ BEGIN
     LOOP
         RAISE EXCEPTION 'cannot drop trigger "%" on view "%" because it is used in FOR PORTION OF view for period "%" on table "%"',
             r.trigger_name, r.view_name, r.period_name, r.table_name;
+    END LOOP;
+
+    /* Complain if the table's primary key has been dropped. */
+    FOR r IN
+        SELECT fpv.table_name, fpv.period_name
+        FROM periods.for_portion_views AS fpv
+        WHERE NOT EXISTS (
+            SELECT FROM pg_catalog.pg_constraint AS c
+            WHERE (c.conrelid, c.contype) = (fpv.table_name, 'p'))
+    LOOP
+        RAISE EXCEPTION 'cannot drop primary key on table "%" because it has a FOR PORTION OF view for period "%"',
+            r.table_name, r.period_name;
     END LOOP;
 
     ---
