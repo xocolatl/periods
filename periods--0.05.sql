@@ -2557,14 +2557,14 @@ BEGIN
 
     /* Complain if the FOR PORTION OF trigger is missing. */
     FOR r IN
-        SELECT fpv.table_name, fpv.period_name, fpv.trigger_name
+        SELECT fpv.table_name, fpv.period_name, fpv.view_name, fpv.trigger_name
         FROM periods.for_portion_views AS fpv
         WHERE NOT EXISTS (
             SELECT FROM pg_catalog.pg_trigger AS t
-            WHERE (t.tgrelid, t.tgname) = (fpv.table_name, fpv.trigger_name))
+            WHERE (t.tgrelid, t.tgname) = (fpv.view_name, fpv.trigger_name))
     LOOP
-        RAISE EXCEPTION 'cannot drop trigger "%" on table "%" because it is used in FOR PORTION OF view for period "%"',
-            r.trigger_name, r.table_name, r.period_name;
+        RAISE EXCEPTION 'cannot drop trigger "%" on view "%" because it is used in FOR PORTION OF view for period "%" on table "%"',
+            r.trigger_name, r.view_name, r.period_name, r.table_name;
     END LOOP;
 
     ---

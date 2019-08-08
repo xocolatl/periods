@@ -46,7 +46,7 @@ SELECT periods.add_for_portion_view('dp', 'p');
 DROP VIEW dp__for_portion_of_p;
 ERROR:  cannot drop view "public.dp__for_portion_of_p", call "periods.drop_for_portion_view()" instead
 DROP TRIGGER for_portion_of_p ON dp__for_portion_of_p;
-ERROR:  cannot drop trigger "for_portion_of_p" on table "dp" because it is used in FOR PORTION OF view for period "p"
+ERROR:  cannot drop trigger "for_portion_of_p" on view "dp__for_portion_of_p" because it is used in FOR PORTION OF view for period "p" on table "dp"
 SELECT periods.drop_for_portion_view('dp', 'p');
  drop_for_portion_view 
 -----------------------
