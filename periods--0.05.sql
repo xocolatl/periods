@@ -1899,7 +1899,7 @@ DECLARE
     violation boolean;
     still_matches boolean;
 
-    QSQL CONSTANT text := 
+    QSQL CONSTANT text :=
         'SELECT EXISTS ( '
         '    SELECT FROM %1$I.%2$I AS t '
         '    WHERE ROW(%3$s) = ROW(%6$s) '
