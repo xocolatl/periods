@@ -906,7 +906,7 @@ BEGIN
     END IF;
 
     /* Always serialize operations on our catalogs */
-    PERFORM pg_advisory_xact_lock('periods.periods'::regclass::oid::integer, table_name::oid::integer);
+    PERFORM periods._serialize(table_name);
 
     /*
      * We require the table to have a primary key, so check to see if there is
@@ -972,7 +972,7 @@ BEGIN
     END IF;
 
     /* Always serialize operations on our catalogs */
-    PERFORM pg_advisory_xact_lock('periods.periods'::regclass::oid::integer, table_name::oid::integer);
+    PERFORM periods._serialize(table_name);
 
     FOR view_name, trigger_name IN
         DELETE FROM periods.for_portion_views AS fp
