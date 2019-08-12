@@ -58,8 +58,8 @@ CREATE VIEW periods.information_schema__periods AS
            p.start_column_name,
            p.end_column_name
     FROM periods.periods AS p
-    JOIN pg_class AS c ON c.oid = p.table_name
-    JOIN pg_namespace AS n ON n.oid = c.relnamespace;
+    JOIN pg_catalog.pg_class AS c ON c.oid = p.table_name
+    JOIN pg_catalog.pg_namespace AS n ON n.oid = c.relnamespace;
 
 CREATE TABLE periods.for_portion_views (
     table_name regclass NOT NULL,
@@ -156,7 +156,7 @@ CREATE FUNCTION periods._serialize(table_name regclass)
 AS
 $function$
 /* XXX: Is this the best way to do locking? */
-SELECT pg_advisory_xact_lock('periods.periods'::regclass::oid::integer, table_name::oid::integer);
+SELECT pg_catalog.pg_advisory_xact_lock('periods.periods'::regclass::oid::integer, table_name::oid::integer);
 $function$;
 
 CREATE FUNCTION periods._choose_name(resizable text[], fixed text DEFAULT NULL, separator text DEFAULT '_', extra integer DEFAULT 2)
@@ -397,7 +397,7 @@ BEGIN
         SELECT r.rngtypid
         INTO range_type
         FROM pg_catalog.pg_range AS r
-        JOIN pg_opclass AS c ON c.oid = r.rngsubopc
+        JOIN pg_catalog.pg_opclass AS c ON c.oid = r.rngsubopc
         WHERE (r.rngsubtype, r.rngcollation) = (start_type, start_collation)
           AND c.opcdefault;
 
@@ -429,7 +429,7 @@ BEGIN
     FROM pg_catalog.pg_constraint AS c
     WHERE c.conrelid = table_name
       AND c.contype = 'c'
-      AND pg_get_constraintdef(c.oid) = format('CHECK ((%I < %I))', start_column_name, end_column_name);
+      AND pg_catalog.pg_get_constraintdef(c.oid) = format('CHECK ((%I < %I))', start_column_name, end_column_name);
 
     IF NOT FOUND THEN
         bounds_check_constraint := table_name || '_' || period_name || '_check';
@@ -634,7 +634,7 @@ BEGIN
     SELECT n.nspname, c.relname, c.relpersistence, c.relkind
     INTO schema_name, table_name, persistence, kind
     FROM pg_catalog.pg_class AS c
-    JOIN pg_namespace AS n ON n.oid = c.relnamespace
+    JOIN pg_catalog.pg_namespace AS n ON n.oid = c.relnamespace
     WHERE c.oid = table_class;
 
     IF kind <> 'r' THEN
@@ -770,7 +770,7 @@ BEGIN
     FROM pg_catalog.pg_constraint AS c
     WHERE c.conrelid = table_class
       AND c.contype = 'c'
-      AND pg_get_constraintdef(c.oid) = format('CHECK ((%I < %I))', start_column_name, end_column_name);
+      AND pg_catalog.pg_get_constraintdef(c.oid) = format('CHECK ((%I < %I))', start_column_name, end_column_name);
 
     IF NOT FOUND THEN
         bounds_check_constraint := table_name || '_' || period_name || '_check';
@@ -788,7 +788,7 @@ BEGIN
     FROM pg_catalog.pg_constraint AS c
     WHERE c.conrelid = table_class
       AND c.contype = 'c'
-      AND pg_get_constraintdef(c.oid) = format('CHECK ((%I = ''infinity''::timestamp with time zone))', end_column_name);
+      AND pg_catalog.pg_get_constraintdef(c.oid) = format('CHECK ((%I = ''infinity''::timestamp with time zone))', end_column_name);
 
     IF NOT FOUND THEN
         infinity_check_constraint := array_to_string(ARRAY[table_name, end_column_name, 'infinity', 'check'], '_');
@@ -926,8 +926,8 @@ BEGIN
     FOR r IN
         SELECT n.nspname AS schema_name, c.relname AS table_name, p.period_name
         FROM periods.periods AS p
-        JOIN pg_class AS c ON c.oid = p.table_name
-        JOIN pg_namespace AS n ON n.oid = c.relnamespace
+        JOIN pg_catalog.pg_class AS c ON c.oid = p.table_name
+        JOIN pg_catalog.pg_namespace AS n ON n.oid = c.relnamespace
         WHERE (table_name IS NULL OR p.table_name = table_name)
           AND (period_name IS NULL OR p.period_name = period_name)
           AND p.period_name <> 'system_time'
@@ -1022,7 +1022,7 @@ DECLARE
 
     GENERATED_COLUMNS_SQL_PRE_10 CONSTANT text :=
         'SELECT array_agg(a.attname) '
-        'FROM pg_attribute AS a '
+        'FROM pg_catalog.pg_attribute AS a '
         'WHERE a.attrelid = $1 '
         '  AND a.attnum > 0 '
         '  AND NOT a.attisdropped '
@@ -1037,7 +1037,7 @@ DECLARE
 
     GENERATED_COLUMNS_SQL_PRE_12 CONSTANT text :=
         'SELECT array_agg(a.attname) '
-        'FROM pg_attribute AS a '
+        'FROM pg_catalog.pg_attribute AS a '
         'WHERE a.attrelid = $1 '
         '  AND a.attnum > 0 '
         '  AND NOT a.attisdropped '
@@ -1053,7 +1053,7 @@ DECLARE
 
     GENERATED_COLUMNS_SQL_CURRENT CONSTANT text :=
         'SELECT array_agg(a.attname) '
-        'FROM pg_attribute AS a '
+        'FROM pg_catalog.pg_attribute AS a '
         'WHERE a.attrelid = $1 '
         '  AND a.attnum > 0 '
         '  AND NOT a.attisdropped '
@@ -1270,7 +1270,7 @@ BEGIN
     SELECT array_agg(a.attnum ORDER BY n.ordinality)
     INTO column_attnums
     FROM unnest(column_names) WITH ORDINALITY AS n (name, ordinality)
-    LEFT JOIN pg_attribute AS a ON (a.attrelid, a.attname) = (table_name, n.name);
+    LEFT JOIN pg_catalog.pg_attribute AS a ON (a.attrelid, a.attname) = (table_name, n.name);
 
     /* System columns are not allowed */
     IF 0 > ANY (column_attnums) THEN
@@ -1357,7 +1357,7 @@ BEGIN
     END;
 
     IF exclude_constraint IS NOT NULL THEN
-        SELECT c.oid, c.contype, c.condeferrable, pg_get_constraintdef(c.oid) AS definition
+        SELECT c.oid, c.contype, c.condeferrable, pg_catalog.pg_get_constraintdef(c.oid) AS definition
         INTO constraint_record
         FROM pg_catalog.pg_constraint AS c
         WHERE (c.conrelid, c.conname) = (table_name, exclude_constraint);
@@ -1415,7 +1415,7 @@ BEGIN
         SELECT format('ALTER TABLE %I.%I %s', n.nspname, c.relname, array_to_string(alter_cmds, ', '))
         INTO sql
         FROM pg_catalog.pg_class AS c
-        JOIN pg_namespace AS n ON n.oid = c.relnamespace
+        JOIN pg_catalog.pg_namespace AS n ON n.oid = c.relnamespace
         WHERE c.oid = table_name;
 
         EXECUTE sql;
@@ -1630,7 +1630,7 @@ BEGIN
     SELECT array_agg(a.attnum ORDER BY n.ordinality)
     INTO column_attnums
     FROM unnest(column_names) WITH ORDINALITY AS n (name, ordinality)
-    LEFT JOIN pg_attribute AS a ON (a.attrelid, a.attname) = (table_name, n.name);
+    LEFT JOIN pg_catalog.pg_attribute AS a ON (a.attrelid, a.attname) = (table_name, n.name);
 
     /* System columns are not allowed */
     IF 0 > ANY (column_attnums) THEN
@@ -1684,8 +1684,8 @@ BEGIN
     /* Check that all the columns match */
     IF EXISTS (
         SELECT FROM unnest(column_names, unique_row.column_names) AS u (fk_attname, uk_attname)
-        JOIN pg_attribute AS fa ON (fa.attrelid, fa.attname) = (table_name, u.fk_attname)
-        JOIN pg_attribute AS ua ON (ua.attrelid, ua.attname) = (unique_row.table_name, u.uk_attname)
+        JOIN pg_catalog.pg_attribute AS fa ON (fa.attrelid, fa.attname) = (table_name, u.fk_attname)
+        JOIN pg_catalog.pg_attribute AS ua ON (ua.attrelid, ua.attname) = (unique_row.table_name, u.uk_attname)
         WHERE (fa.atttypid, fa.atttypmod, fa.attcollation) <> (ua.atttypid, ua.atttypmod, ua.attcollation))
     THEN
         RAISE EXCEPTION 'column types do not match';
@@ -1931,12 +1931,12 @@ BEGIN
     INTO foreign_key_info
     FROM periods.foreign_keys AS fk
     JOIN periods.periods AS fp ON (fp.table_name, fp.period_name) = (fk.table_name, fk.period_name)
-    JOIN pg_class AS fc ON fc.oid = fk.table_name
-    JOIN pg_namespace AS fn ON fn.oid = fc.relnamespace
+    JOIN pg_catalog.pg_class AS fc ON fc.oid = fk.table_name
+    JOIN pg_catalog.pg_namespace AS fn ON fn.oid = fc.relnamespace
     JOIN periods.unique_keys AS uk ON uk.key_name = fk.unique_key
     JOIN periods.periods AS up ON (up.table_name, up.period_name) = (uk.table_name, uk.period_name)
-    JOIN pg_class AS uc ON uc.oid = uk.table_name
-    JOIN pg_namespace AS un ON un.oid = uc.relnamespace
+    JOIN pg_catalog.pg_class AS uc ON uc.oid = uk.table_name
+    JOIN pg_catalog.pg_namespace AS un ON un.oid = uc.relnamespace
     WHERE fk.key_name = foreign_key_name;
 
     IF NOT FOUND THEN
@@ -2059,12 +2059,12 @@ BEGIN
     INTO foreign_key_info
     FROM periods.foreign_keys AS fk
     JOIN periods.periods AS fp ON (fp.table_name, fp.period_name) = (fk.table_name, fk.period_name)
-    JOIN pg_class AS fc ON fc.oid = fk.table_name
-    JOIN pg_namespace AS fn ON fn.oid = fc.relnamespace
+    JOIN pg_catalog.pg_class AS fc ON fc.oid = fk.table_name
+    JOIN pg_catalog.pg_namespace AS fn ON fn.oid = fc.relnamespace
     JOIN periods.unique_keys AS uk ON uk.key_name = fk.unique_key
     JOIN periods.periods AS up ON (up.table_name, up.period_name) = (uk.table_name, uk.period_name)
-    JOIN pg_class AS uc ON uc.oid = uk.table_name
-    JOIN pg_namespace AS un ON un.oid = uc.relnamespace
+    JOIN pg_catalog.pg_class AS uc ON uc.oid = uk.table_name
+    JOIN pg_catalog.pg_namespace AS un ON un.oid = uc.relnamespace
     WHERE fk.key_name = foreign_key_name;
 
     IF NOT FOUND THEN
@@ -2191,7 +2191,7 @@ BEGIN
     SELECT n.nspname, c.relname, c.relpersistence, c.relkind
     INTO schema_name, table_name, persistence, kind
     FROM pg_catalog.pg_class AS c
-    JOIN pg_namespace AS n ON n.oid = c.relnamespace
+    JOIN pg_catalog.pg_namespace AS n ON n.oid = c.relnamespace
     WHERE c.oid = table_class;
 
     IF kind <> 'r' THEN
@@ -2246,7 +2246,7 @@ BEGIN
     SELECT c.oid
     INTO history_table_id
     FROM pg_catalog.pg_class AS c
-    JOIN pg_namespace AS n ON n.oid = c.relnamespace
+    JOIN pg_catalog.pg_namespace AS n ON n.oid = c.relnamespace
     WHERE (n.nspname, c.relname) = (schema_name, history_table_name);
 
     IF FOUND THEN
@@ -2464,8 +2464,8 @@ BEGIN
     FOR r IN
         SELECT dobj.object_identity, p.period_name
         FROM periods.periods AS p
-        JOIN pg_attribute AS sa ON (sa.attrelid, sa.attname) = (p.table_name, p.start_column_name)
-        JOIN pg_attribute AS ea ON (ea.attrelid, ea.attname) = (p.table_name, p.end_column_name)
+        JOIN pg_catalog.pg_attribute AS sa ON (sa.attrelid, sa.attname) = (p.table_name, p.start_column_name)
+        JOIN pg_catalog.pg_attribute AS ea ON (ea.attrelid, ea.attname) = (p.table_name, p.end_column_name)
         JOIN pg_catalog.pg_event_trigger_dropped_objects() WITH ORDINALITY AS dobj
                 ON dobj.objid = p.table_name AND dobj.objsubid IN (sa.attnum, ea.attnum)
         WHERE dobj.object_type = 'table column'
@@ -2865,7 +2865,7 @@ BEGIN
         JOIN pg_catalog.pg_constraint AS c ON c.conrelid = uk.table_name
         WHERE NOT EXISTS (SELECT FROM pg_constraint AS _c WHERE (_c.conrelid, _c.conname) = (uk.table_name, uk.unique_constraint))
         GROUP BY uk.key_name, c.oid, c.conname
-        HAVING format('UNIQUE (%s)', string_agg(quote_ident(u.column_name), ', ' ORDER BY u.ordinality)) = pg_get_constraintdef(c.oid)
+        HAVING format('UNIQUE (%s)', string_agg(quote_ident(u.column_name), ', ' ORDER BY u.ordinality)) = pg_catalog.pg_get_constraintdef(c.oid)
     LOOP
         EXECUTE sql;
     END LOOP;
@@ -2877,13 +2877,13 @@ BEGIN
         JOIN periods.periods AS p ON (p.table_name, p.period_name) = (uk.table_name, uk.period_name)
         CROSS JOIN LATERAL unnest(uk.column_names) WITH ORDINALITY AS u (column_name, ordinality)
         JOIN pg_catalog.pg_constraint AS c ON c.conrelid = uk.table_name
-        WHERE NOT EXISTS (SELECT FROM pg_constraint AS _c WHERE (_c.conrelid, _c.conname) = (uk.table_name, uk.exclude_constraint))
+        WHERE NOT EXISTS (SELECT FROM pg_catalog.pg_constraint AS _c WHERE (_c.conrelid, _c.conname) = (uk.table_name, uk.exclude_constraint))
         GROUP BY uk.key_name, c.oid, c.conname, p.range_type, p.start_column_name, p.end_column_name
         HAVING format('EXCLUDE USING gist (%s, %I(%I, %I, ''[)''::text) WITH &&)',
                       string_agg(quote_ident(u.column_name) || ' WITH =', ', ' ORDER BY u.ordinality),
                       p.range_type,
                       p.start_column_name,
-                      p.end_column_name) = pg_get_constraintdef(c.oid)
+                      p.end_column_name) = pg_catalog.pg_get_constraintdef(c.oid)
     LOOP
         EXECUTE sql;
     END LOOP;
