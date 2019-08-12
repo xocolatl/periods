@@ -1,3 +1,14 @@
+/*
+ * An alternative file for pre-v12 is necessary because LEAST() and GREATEST()
+ * were not constant folded.  It was actually while writing this extension that
+ * the lack of optimization was noticed, and subsequently fixed.
+ *
+ * https://www.postgresql.org/message-id/flat/c6e8504c-4c43-35fa-6c8f-3c0b80a912cc%402ndquadrant.com
+ */
+
+SELECT setting::integer < 120000 AS pre_12
+FROM pg_settings WHERE name = 'server_version_num';
+
 /* Basic SYSTEM VERSIONING */
 
 CREATE TABLE sysver (val text);
@@ -36,6 +47,15 @@ SELECT val FROM sysver__between(:'ts2', :'ts1') ORDER BY system_time_start;
 
 SELECT val FROM sysver__between_symmetric(:'ts1', :'ts2') ORDER BY system_time_start;
 SELECT val FROM sysver__between_symmetric(:'ts2', :'ts1') ORDER BY system_time_start;
+
+/* Ensure functions are inlined */
+
+SET TimeZone = 'UTC';
+SET DateStyle = 'ISO';
+EXPLAIN (COSTS OFF) SELECT * FROM sysver__as_of('2000-01-01');
+EXPLAIN (COSTS OFF) SELECT * FROM sysver__from_to('1000-01-01', '3000-01-01');
+EXPLAIN (COSTS OFF) SELECT * FROM sysver__between('1000-01-01', '3000-01-01');
+EXPLAIN (COSTS OFF) SELECT * FROM sysver__between_symmetric('3000-01-01', '1000-01-01');
 
 /* TRUNCATE should delete the history, too */
 SELECT val FROM sysver_with_history;
