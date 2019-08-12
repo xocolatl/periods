@@ -41,17 +41,17 @@ SELECT periods.add_foreign_key('fk', ARRAY['uk_id'], 'q', 'uk_id_p', key_name =>
 -- INSERT
 INSERT INTO fk VALUES (0, 100, 0, 1); -- fail
 ERROR:  insert or update on table "fk" violates foreign key constraint "fk_uk_id_q"
-CONTEXT:  PL/pgSQL function periods.validate_foreign_key_new_row(name,jsonb) line 134 at RAISE
+CONTEXT:  PL/pgSQL function periods.validate_foreign_key_new_row(name,jsonb) line 130 at RAISE
 SQL statement "SELECT periods.validate_foreign_key_new_row(TG_ARGV[0], jnew)"
 PL/pgSQL function periods.fk_insert_check() line 20 at PERFORM
 INSERT INTO fk VALUES (0, 100, 0, 10); -- fail
 ERROR:  insert or update on table "fk" violates foreign key constraint "fk_uk_id_q"
-CONTEXT:  PL/pgSQL function periods.validate_foreign_key_new_row(name,jsonb) line 134 at RAISE
+CONTEXT:  PL/pgSQL function periods.validate_foreign_key_new_row(name,jsonb) line 130 at RAISE
 SQL statement "SELECT periods.validate_foreign_key_new_row(TG_ARGV[0], jnew)"
 PL/pgSQL function periods.fk_insert_check() line 20 at PERFORM
 INSERT INTO fk VALUES (0, 100, 1, 11); -- fail
 ERROR:  insert or update on table "fk" violates foreign key constraint "fk_uk_id_q"
-CONTEXT:  PL/pgSQL function periods.validate_foreign_key_new_row(name,jsonb) line 134 at RAISE
+CONTEXT:  PL/pgSQL function periods.validate_foreign_key_new_row(name,jsonb) line 130 at RAISE
 SQL statement "SELECT periods.validate_foreign_key_new_row(TG_ARGV[0], jnew)"
 PL/pgSQL function periods.fk_insert_check() line 20 at PERFORM
 INSERT INTO fk VALUES (1, 100, 1, 3); -- success
@@ -59,7 +59,7 @@ INSERT INTO fk VALUES (2, 100, 1, 10); -- success
 -- UPDATE
 UPDATE fk SET e = 20 WHERE id = 1; -- fail
 ERROR:  insert or update on table "fk" violates foreign key constraint "fk_uk_id_q"
-CONTEXT:  PL/pgSQL function periods.validate_foreign_key_new_row(name,jsonb) line 134 at RAISE
+CONTEXT:  PL/pgSQL function periods.validate_foreign_key_new_row(name,jsonb) line 130 at RAISE
 SQL statement "SELECT periods.validate_foreign_key_new_row(TG_ARGV[0], jnew)"
 PL/pgSQL function periods.fk_update_check() line 19 at PERFORM
 UPDATE fk SET e = 6 WHERE id = 1; -- success

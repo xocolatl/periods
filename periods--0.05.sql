@@ -2015,26 +2015,26 @@ DECLARE
 
 	QSQL CONSTANT text :=
         'SELECT EXISTS ( '
-        '    SELECT FROM %9$I.%10$I AS fk '
+        '    SELECT FROM %5$I.%6$I AS fk '
         '    WHERE NOT EXISTS ( '
         '        SELECT FROM (SELECT uk.uk_start_value, '
         '                            uk.uk_end_value, '
         '                            nullif(lag(uk.uk_end_value) OVER (ORDER BY uk.uk_start_value), uk.uk_start_value) AS x '
-        '                     FROM (SELECT uk.%5$I AS uk_start_value, '
-        '                                  uk.%7$I AS uk_end_value '
+        '                     FROM (SELECT uk.%3$I AS uk_start_value, '
+        '                                  uk.%4$I AS uk_end_value '
         '                           FROM %1$I.%2$I AS uk '
-        '                           WHERE ROW(%3$s) = ROW(%11$s) '
-        '                             AND uk.%5$I <= fk.%15$I '
-        '                             AND uk.%7$I >= fk.%13$I '
+        '                           WHERE %9$s '
+        '                             AND uk.%3$I <= fk.%8$I '
+        '                             AND uk.%4$I >= fk.%7$I '
         '                           FOR KEY SHARE '
         '                          ) AS uk '
         '                    ) AS uk '
-        '        WHERE uk.uk_start_value < fk.%15$I '
-        '          AND uk.uk_end_value >= fk.%13$I '
-        '        HAVING min(uk.uk_start_value) <= fk.%13$I '
-        '           AND max(uk.uk_end_value) >= fk.%15$I '
+        '        WHERE uk.uk_start_value < fk.%8$I '
+        '          AND uk.uk_end_value >= fk.%7$I '
+        '        HAVING min(uk.uk_start_value) <= fk.%7$I '
+        '           AND max(uk.uk_end_value) >= fk.%8$I '
         '           AND array_agg(uk.x) FILTER (WHERE uk.x IS NOT NULL) IS NULL '
-        '    ) AND %17$s '
+        '    ) AND %10$s '
         ')';
 
 BEGIN
@@ -2118,20 +2118,16 @@ BEGIN
 
     EXECUTE format(QSQL, foreign_key_info.uk_schema_name,
                          foreign_key_info.uk_table_name,
-                         (SELECT string_agg(quote_ident(c), ', ' ORDER BY o) FROM unnest(foreign_key_info.uk_column_names) WITH ORDINALITY AS u (c, o)),
-                         NULL,
                          foreign_key_info.uk_start_column_name,
-                         NULL,
                          foreign_key_info.uk_end_column_name,
-                         NULL,
                          foreign_key_info.fk_schema_name,
                          foreign_key_info.fk_table_name,
-                         (SELECT string_agg(quote_ident(c), ', ' ORDER BY o) FROM unnest(foreign_key_info.fk_column_names) WITH ORDINALITY AS u (c, o)),
-                         NULL,
                          foreign_key_info.fk_start_column_name,
-                         NULL,
                          foreign_key_info.fk_end_column_name,
-                         NULL,
+                         (SELECT string_agg(format('%I = %I', ukc, fkc), ' AND ')
+                          FROM unnest(foreign_key_info.uk_column_names,
+                                      foreign_key_info.fk_column_names) AS u (ukc, fkc)
+                         ),
                          row_clause)
     INTO violation;
 
