@@ -15,6 +15,15 @@ CREATE TABLE sysver (val text);
 SELECT periods.add_system_time_period('sysver');
 TABLE periods.system_time_periods;
 TABLE periods.system_versioning;
+SELECT periods.add_system_versioning('sysver',
+    history_table_name => 'custom_history_name',
+    view_name => 'custom_view_name',
+    function_as_of_name => 'custom_as_of',
+    function_between_name => 'custom_between',
+    function_between_symmetric_name => 'custom_between_symmetric',
+    function_from_to_name => 'custom_from_to');
+TABLE periods.system_versioning;
+SELECT periods.drop_system_versioning('sysver', drop_behavior => 'CASCADE');
 SELECT periods.add_system_versioning('sysver');
 TABLE periods.system_versioning;
 

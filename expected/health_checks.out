@@ -9,10 +9,10 @@ FROM pg_settings WHERE name = 'server_version_num';
 CREATE UNLOGGED TABLE log (id bigint, s date, e date);
 SELECT periods.add_period('log', 'p', 's', 'e'); -- fails
 ERROR:  table "log" must be persistent
-CONTEXT:  PL/pgSQL function periods.add_period(regclass,name,name,name,regtype) line 72 at RAISE
+CONTEXT:  PL/pgSQL function periods.add_period(regclass,name,name,name,regtype,name) line 72 at RAISE
 SELECT periods.add_system_time_period('log'); -- fails
 ERROR:  table "log" must be persistent
-CONTEXT:  PL/pgSQL function periods.add_system_time_period(regclass,name,name) line 77 at RAISE
+CONTEXT:  PL/pgSQL function periods.add_system_time_period(regclass,name,name,name,name,name,name,name) line 72 at RAISE
 ALTER TABLE log SET LOGGED;
 SELECT periods.add_period('log', 'p', 's', 'e'); -- passes
  add_period 

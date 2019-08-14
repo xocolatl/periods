@@ -5,6 +5,10 @@ SELECT periods.add_period('basic', 'bp', 's', 'e');
 TABLE periods.periods;
 SELECT periods.drop_period('basic', 'bp');
 TABLE periods.periods;
+SELECT periods.add_period('basic', 'bp', 's', 'e', bounds_check_constraint => 'c');
+TABLE periods.periods;
+SELECT periods.drop_period('basic', 'bp', purge => true);
+TABLE periods.periods;
 SELECT periods.add_period('basic', 'bp', 's', 'e');
 TABLE periods.periods;
 /* Test constraints */

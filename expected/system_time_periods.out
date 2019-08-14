@@ -109,16 +109,45 @@ SELECT periods.add_system_time_period('sysver', 'startname', 'endname');
  t
 (1 row)
 
+TABLE periods.periods;
+ table_name | period_name | start_column_name | end_column_name | range_type | bounds_check_constraint  
+------------+-------------+-------------------+-----------------+------------+--------------------------
+ sysver     | system_time | startname         | endname         | tstzrange  | sysver_system_time_check
+(1 row)
+
+TABLE periods.system_time_periods;
+ table_name | period_name |   infinity_check_constraint   |      generated_always_trigger       |      write_history_trigger       | truncate_trigger 
+------------+-------------+-------------------------------+-------------------------------------+----------------------------------+------------------
+ sysver     | system_time | sysver_endname_infinity_check | sysver_system_time_generated_always | sysver_system_time_write_history | sysver_truncate
+(1 row)
+
 SELECT periods.drop_system_time_period('sysver', drop_behavior => 'CASCADE', purge => true);
  drop_system_time_period 
 -------------------------
  t
 (1 row)
 
-SELECT periods.add_system_time_period('sysver', 'endname', 'startname');
+SELECT periods.add_system_time_period('sysver', 'endname', 'startname',
+        bounds_check_constraint => 'b',
+        infinity_check_constraint => 'i',
+        generated_always_trigger => 'g',
+        write_history_trigger => 'w',
+        truncate_trigger => 't');
  add_system_time_period 
 ------------------------
  t
+(1 row)
+
+TABLE periods.periods;
+ table_name | period_name | start_column_name | end_column_name | range_type | bounds_check_constraint 
+------------+-------------+-------------------+-----------------+------------+-------------------------
+ sysver     | system_time | endname           | startname       | tstzrange  | b
+(1 row)
+
+TABLE periods.system_time_periods;
+ table_name | period_name | infinity_check_constraint | generated_always_trigger | write_history_trigger | truncate_trigger 
+------------+-------------+---------------------------+--------------------------+-----------------------+------------------
+ sysver     | system_time | i                         | g                        | w                     | t
 (1 row)
 
 SELECT periods.drop_system_time_period('sysver', drop_behavior => 'CASCADE', purge => true);
@@ -193,7 +222,7 @@ SELECT periods.add_unique_key('no_unique', ARRAY['system_time_end'], 'p'); -- pa
 
 SELECT periods.add_system_time_period('no_unique'); -- fails
 ERROR:  columns in period for SYSTEM_TIME are not allowed in UNIQUE keys
-CONTEXT:  PL/pgSQL function periods.add_system_time_period(regclass,name,name) line 51 at RAISE
+CONTEXT:  PL/pgSQL function periods.add_system_time_period(regclass,name,name,name,name,name,name,name) line 46 at RAISE
 SELECT periods.drop_unique_key('no_unique', 'no_unique_system_time_start_p');
  drop_unique_key 
 -----------------
@@ -222,13 +251,13 @@ SELECT periods.add_system_time_period('no_unique_ref');
 
 SELECT periods.add_foreign_key('no_unique_ref', ARRAY['system_time_start'], 'q', 'no_unique_col1_p'); -- fails
 ERROR:  columns in period for SYSTEM_TIME are not allowed in UNIQUE keys
-CONTEXT:  PL/pgSQL function periods.add_foreign_key(regclass,name[],name,name,periods.fk_match_types,periods.fk_actions,periods.fk_actions,name) line 50 at RAISE
+CONTEXT:  PL/pgSQL function periods.add_foreign_key(regclass,name[],name,name,periods.fk_match_types,periods.fk_actions,periods.fk_actions,name,name,name,name,name) line 46 at RAISE
 SELECT periods.add_foreign_key('no_unique_ref', ARRAY['system_time_end'], 'q', 'no_unique_col1_p'); -- fails
 ERROR:  columns in period for SYSTEM_TIME are not allowed in UNIQUE keys
-CONTEXT:  PL/pgSQL function periods.add_foreign_key(regclass,name[],name,name,periods.fk_match_types,periods.fk_actions,periods.fk_actions,name) line 50 at RAISE
+CONTEXT:  PL/pgSQL function periods.add_foreign_key(regclass,name[],name,name,periods.fk_match_types,periods.fk_actions,periods.fk_actions,name,name,name,name,name) line 46 at RAISE
 SELECT periods.add_foreign_key('no_unique_ref', ARRAY['col1'], 'system_time', 'no_unique_col1_p'); -- fails
 ERROR:  periods for SYSTEM_TIME are not allowed in foreign keys
-CONTEXT:  PL/pgSQL function periods.add_foreign_key(regclass,name[],name,name,periods.fk_match_types,periods.fk_actions,periods.fk_actions,name) line 38 at RAISE
+CONTEXT:  PL/pgSQL function periods.add_foreign_key(regclass,name[],name,name,periods.fk_match_types,periods.fk_actions,periods.fk_actions,name,name,name,name,name) line 34 at RAISE
 SELECT periods.drop_system_time_period('no_unique_ref');
  drop_system_time_period 
 -------------------------
@@ -249,5 +278,5 @@ SELECT periods.add_foreign_key('no_unique_ref', ARRAY['system_time_end'], 'q', '
 
 SELECT periods.add_system_time_period('no_unique_ref'); -- fails
 ERROR:  columns for SYSTEM_TIME must not be part of foreign keys
-CONTEXT:  PL/pgSQL function periods.add_system_time_period(regclass,name,name) line 171 at RAISE
+CONTEXT:  PL/pgSQL function periods.add_system_time_period(regclass,name,name,name,name,name,name,name) line 166 at RAISE
 DROP TABLE no_unique, no_unique_ref;

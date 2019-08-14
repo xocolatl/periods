@@ -31,6 +31,31 @@ TABLE periods.system_versioning;
 ------------+-------------+--------------------+-----------+------------+--------------+------------------------+--------------
 (0 rows)
 
+SELECT periods.add_system_versioning('sysver',
+    history_table_name => 'custom_history_name',
+    view_name => 'custom_view_name',
+    function_as_of_name => 'custom_as_of',
+    function_between_name => 'custom_between',
+    function_between_symmetric_name => 'custom_between_symmetric',
+    function_from_to_name => 'custom_from_to');
+NOTICE:  history table "custom_history_name" created for "sysver", be sure to index it properly
+ add_system_versioning 
+-----------------------
+ 
+(1 row)
+
+TABLE periods.system_versioning;
+ table_name | period_name | history_table_name  |    view_name     |               func_as_of               |                           func_between                            |                           func_between_symmetric                            |                           func_from_to                            
+------------+-------------+---------------------+------------------+----------------------------------------+-------------------------------------------------------------------+-----------------------------------------------------------------------------+-------------------------------------------------------------------
+ sysver     | system_time | custom_history_name | custom_view_name | custom_as_of(timestamp with time zone) | custom_between(timestamp with time zone,timestamp with time zone) | custom_between_symmetric(timestamp with time zone,timestamp with time zone) | custom_from_to(timestamp with time zone,timestamp with time zone)
+(1 row)
+
+SELECT periods.drop_system_versioning('sysver', drop_behavior => 'CASCADE');
+ drop_system_versioning 
+------------------------
+ t
+(1 row)
+
 SELECT periods.add_system_versioning('sysver');
 NOTICE:  history table "sysver_history" created for "sysver", be sure to index it properly
  add_system_versioning 

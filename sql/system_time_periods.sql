@@ -45,8 +45,17 @@ SELECT periods.drop_period('sysver', 'system_time', drop_behavior => 'CASCADE', 
 SELECT periods.add_system_time_period('sysver', end_column_name => 'endname');
 SELECT periods.drop_period('sysver', 'system_time', drop_behavior => 'CASCADE', purge => true);
 SELECT periods.add_system_time_period('sysver', 'startname', 'endname');
+TABLE periods.periods;
+TABLE periods.system_time_periods;
 SELECT periods.drop_system_time_period('sysver', drop_behavior => 'CASCADE', purge => true);
-SELECT periods.add_system_time_period('sysver', 'endname', 'startname');
+SELECT periods.add_system_time_period('sysver', 'endname', 'startname',
+        bounds_check_constraint => 'b',
+        infinity_check_constraint => 'i',
+        generated_always_trigger => 'g',
+        write_history_trigger => 'w',
+        truncate_trigger => 't');
+TABLE periods.periods;
+TABLE periods.system_time_periods;
 SELECT periods.drop_system_time_period('sysver', drop_behavior => 'CASCADE', purge => true);
 SELECT periods.add_system_time_period('sysver');
 DROP TABLE sysver;

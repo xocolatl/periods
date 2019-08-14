@@ -233,16 +233,22 @@ END;
 $function$;
 
 
-CREATE FUNCTION periods.add_period(table_name regclass, period_name name, start_column_name name, end_column_name name, range_type regtype DEFAULT NULL)
+CREATE FUNCTION periods.add_period(
+    table_name regclass,
+    period_name name,
+    start_column_name name,
+    end_column_name name,
+    range_type regtype DEFAULT NULL,
+    bounds_check_constraint name DEFAULT NULL)
  RETURNS boolean
  LANGUAGE plpgsql
 AS
 $function$
 #variable_conflict use_variable
 DECLARE
+    table_name_only name;
     kind "char";
     persistence "char";
-    bounds_check_constraint name;
     alter_commands text[] DEFAULT '{}';
 
     start_attnum smallint;
@@ -424,17 +430,48 @@ BEGIN
      *
      * SQL:2016 11.27 GR 2.b
      */
-    SELECT c.conname
-    INTO bounds_check_constraint
-    FROM pg_catalog.pg_constraint AS c
-    WHERE c.conrelid = table_name
-      AND c.contype = 'c'
-      AND pg_catalog.pg_get_constraintdef(c.oid) = format('CHECK ((%I < %I))', start_column_name, end_column_name);
+    DECLARE
+        condef CONSTANT text := format('CHECK ((%I < %I))', start_column_name, end_column_name);
+        context text;
+    BEGIN
+        IF bounds_check_constraint IS NOT NULL THEN
+            /* We were given a name, does it exist? */
+            SELECT pg_catalog.pg_get_constraintdef(c.oid)
+            INTO context
+            FROM pg_catalog.pg_constraint AS c
+            WHERE (c.conrelid, c.conname) = (table_name, bounds_check_constraint)
+              AND c.contype = 'c';
 
-    IF NOT FOUND THEN
-        bounds_check_constraint := table_name || '_' || period_name || '_check';
-        alter_commands := alter_commands || format('ADD CONSTRAINT %I CHECK (%I < %I)', bounds_check_constraint, start_column_name, end_column_name);
-    END IF;
+            IF FOUND THEN
+                /* Does it match? */
+                IF context <> condef THEN
+                    RAISE EXCEPTION 'constraint "%" on table "%" does not match', bounds_check_constraint, table_name;
+                END IF;
+            ELSE
+                /* If it doesn't exist, we'll use the name for the one we create. */
+                alter_commands := alter_commands || format('ADD CONSTRAINT %I %s', bounds_check_constraint, condef);
+            END IF;
+        ELSE
+            /* No name given, can we appropriate one? */
+            SELECT c.conname
+            INTO bounds_check_constraint
+            FROM pg_catalog.pg_constraint AS c
+            WHERE c.conrelid = table_name
+              AND c.contype = 'c'
+              AND pg_catalog.pg_get_constraintdef(c.oid) = condef;
+
+            /* Make our own then */
+            IF NOT FOUND THEN
+                SELECT c.relname
+                INTO table_name_only
+                FROM pg_catalog.pg_class AS c
+                WHERE c.oid = table_name;
+
+                bounds_check_constraint := periods._choose_name(ARRAY[table_name_only, period_name], 'check');
+                alter_commands := alter_commands || format('ADD CONSTRAINT %I %s', bounds_check_constraint, condef);
+            END IF;
+        END IF;
+    END;
 
     /* If we've created any work for ourselves, do it now */
     IF alter_commands <> '{}' THEN
@@ -529,6 +566,13 @@ BEGIN
             RAISE EXCEPTION 'table % has SYSTEM VERSIONING', table_name;
         END IF;
 
+        /* Delete bounds check constraint if purging */
+        IF NOT is_dropped AND purge THEN
+            EXECUTE format('ALTER TABLE %s DROP CONSTRAINT %I',
+                table_name, period_row.bounds_check_constraint);
+        END IF;
+
+        /* Remove from catalog */
         DELETE FROM periods.periods AS p
         WHERE (p.table_name, p.period_name) = (table_name, period_name);
 
@@ -560,11 +604,13 @@ BEGIN
         PERFORM periods.drop_system_versioning(table_name, drop_behavior, purge);
     END IF;
 
+    /* Delete bounds check constraint if purging */
     IF NOT is_dropped AND purge THEN
         EXECUTE format('ALTER TABLE %s DROP CONSTRAINT %I',
             table_name, period_row.bounds_check_constraint);
     END IF;
 
+    /* Remove from catalog */
     DELETE FROM periods.periods AS p
     WHERE (p.table_name, p.period_name) = (table_name, period_name);
 
@@ -572,7 +618,15 @@ BEGIN
 END;
 $function$;
 
-CREATE FUNCTION periods.add_system_time_period(table_class regclass, start_column_name name DEFAULT 'system_time_start', end_column_name name DEFAULT 'system_time_end')
+CREATE FUNCTION periods.add_system_time_period(
+    table_class regclass,
+    start_column_name name DEFAULT 'system_time_start',
+    end_column_name name DEFAULT 'system_time_end',
+    bounds_check_constraint name DEFAULT NULL,
+    infinity_check_constraint name DEFAULT NULL,
+    generated_always_trigger name DEFAULT NULL,
+    write_history_trigger name DEFAULT NULL,
+    truncate_trigger name DEFAULT NULL)
  RETURNS boolean
  LANGUAGE plpgsql
 AS
@@ -585,11 +639,6 @@ DECLARE
     table_name name;
     kind "char";
     persistence "char";
-    bounds_check_constraint name;
-    infinity_check_constraint name;
-    generated_always_trigger name;
-    write_history_trigger name;
-    truncate_trigger name;
     alter_commands text[] DEFAULT '{}';
 
     start_attnum smallint;
@@ -765,17 +814,48 @@ BEGIN
      *
      * SQL:2016 11.27 GR 2.b
      */
-    SELECT c.conname
-    INTO bounds_check_constraint
-    FROM pg_catalog.pg_constraint AS c
-    WHERE c.conrelid = table_class
-      AND c.contype = 'c'
-      AND pg_catalog.pg_get_constraintdef(c.oid) = format('CHECK ((%I < %I))', start_column_name, end_column_name);
+    DECLARE
+        condef CONSTANT text := format('CHECK ((%I < %I))', start_column_name, end_column_name);
+        context text;
+    BEGIN
+        IF bounds_check_constraint IS NOT NULL THEN
+            /* We were given a name, does it exist? */
+            SELECT pg_catalog.pg_get_constraintdef(c.oid)
+            INTO context
+            FROM pg_catalog.pg_constraint AS c
+            WHERE (c.conrelid, c.conname) = (table_class, bounds_check_constraint)
+              AND c.contype = 'c';
 
-    IF NOT FOUND THEN
-        bounds_check_constraint := table_name || '_' || period_name || '_check';
-        alter_commands := alter_commands || format('ADD CONSTRAINT %I CHECK (%I < %I)', bounds_check_constraint, start_column_name, end_column_name);
-    END IF;
+            IF FOUND THEN
+                /* Does it match? */
+                IF context <> condef THEN
+                    RAISE EXCEPTION 'constraint "%" on table "%" does not match', bounds_check_constraint, table_class;
+                END IF;
+            ELSE
+                /* If it doesn't exist, we'll use the name for the one we create. */
+                alter_commands := alter_commands || format('ADD CONSTRAINT %I %s', bounds_check_constraint, condef);
+            END IF;
+        ELSE
+            /* No name given, can we appropriate one? */
+            SELECT c.conname
+            INTO bounds_check_constraint
+            FROM pg_catalog.pg_constraint AS c
+            WHERE c.conrelid = table_class
+              AND c.contype = 'c'
+              AND pg_catalog.pg_get_constraintdef(c.oid) = condef;
+
+            /* Make our own then */
+            IF NOT FOUND THEN
+                SELECT c.relname
+                INTO table_name
+                FROM pg_catalog.pg_class AS c
+                WHERE c.oid = table_class;
+
+                bounds_check_constraint := periods._choose_name(ARRAY[table_name, period_name], 'check');
+                alter_commands := alter_commands || format('ADD CONSTRAINT %I %s', bounds_check_constraint, condef);
+            END IF;
+        END IF;
+    END;
 
     /*
      * Find and appropriate a CHECK constraint to make sure that end = 'infinity'.
@@ -783,17 +863,48 @@ BEGIN
      *
      * SQL:2016 4.15.2.2
      */
-    SELECT c.conname
-    INTO infinity_check_constraint
-    FROM pg_catalog.pg_constraint AS c
-    WHERE c.conrelid = table_class
-      AND c.contype = 'c'
-      AND pg_catalog.pg_get_constraintdef(c.oid) = format('CHECK ((%I = ''infinity''::timestamp with time zone))', end_column_name);
+    DECLARE
+        condef CONSTANT text := format('CHECK ((%I = ''infinity''::timestamp with time zone))', end_column_name);
+        context text;
+    BEGIN
+        IF infinity_check_constraint IS NOT NULL THEN
+            /* We were given a name, does it exist? */
+            SELECT pg_catalog.pg_get_constraintdef(c.oid)
+            INTO context
+            FROM pg_catalog.pg_constraint AS c
+            WHERE (c.conrelid, c.conname) = (table_class, infinity_check_constraint)
+              AND c.contype = 'c';
 
-    IF NOT FOUND THEN
-        infinity_check_constraint := array_to_string(ARRAY[table_name, end_column_name, 'infinity', 'check'], '_');
-        alter_commands := alter_commands || format('ADD CONSTRAINT %I CHECK (%I = ''infinity''::timestamp with time zone)', infinity_check_constraint, end_column_name);
-    END IF;
+            IF FOUND THEN
+                /* Does it match? */
+                IF context <> condef THEN
+                    RAISE EXCEPTION 'constraint "%" on table "%" does not match', infinity_check_constraint, table_class;
+                END IF;
+            ELSE
+                /* If it doesn't exist, we'll use the name for the one we create. */
+                alter_commands := alter_commands || format('ADD CONSTRAINT %I %s', infinity_check_constraint, condef);
+            END IF;
+        ELSE
+            /* No name given, can we appropriate one? */
+            SELECT c.conname
+            INTO infinity_check_constraint
+            FROM pg_catalog.pg_constraint AS c
+            WHERE c.conrelid = table_class
+              AND c.contype = 'c'
+              AND pg_catalog.pg_get_constraintdef(c.oid) = condef;
+
+            /* Make our own then */
+            IF NOT FOUND THEN
+                SELECT c.relname
+                INTO table_name
+                FROM pg_catalog.pg_class AS c
+                WHERE c.oid = table_class;
+
+                infinity_check_constraint := periods._choose_name(ARRAY[table_name, end_column_name], 'infinity_check');
+                alter_commands := alter_commands || format('ADD CONSTRAINT %I %s', infinity_check_constraint, condef);
+            END IF;
+        END IF;
+    END;
 
     /* If we've created any work for ourselves, do it now */
     IF alter_commands <> '{}' THEN
@@ -814,13 +925,19 @@ BEGIN
         END IF;
     END IF;
 
-    generated_always_trigger := array_to_string(ARRAY[table_name, 'system_time', 'generated', 'always'], '_');
+    generated_always_trigger := coalesce(
+        generated_always_trigger,
+        periods._choose_name(ARRAY[table_name], 'system_time_generated_always'));
     EXECUTE format('CREATE TRIGGER %I BEFORE INSERT OR UPDATE ON %s FOR EACH ROW EXECUTE PROCEDURE periods.generated_always_as_row_start_end()', generated_always_trigger, table_class);
 
-    write_history_trigger := array_to_string(ARRAY[table_name, 'system_time', 'write', 'history'], '_');
+    write_history_trigger := coalesce(
+        write_history_trigger,
+        periods._choose_name(ARRAY[table_name], 'system_time_write_history'));
     EXECUTE format('CREATE TRIGGER %I AFTER INSERT OR UPDATE OR DELETE ON %s FOR EACH ROW EXECUTE PROCEDURE periods.write_history()', write_history_trigger, table_class);
 
-    truncate_trigger := array_to_string(ARRAY[table_name, 'truncate'], '_');
+    truncate_trigger := coalesce(
+        truncate_trigger,
+        periods._choose_name(ARRAY[table_name], 'truncate'));
     EXECUTE format('CREATE TRIGGER %I AFTER TRUNCATE ON %s FOR EACH STATEMENT EXECUTE PROCEDURE periods.truncate_system_versioning()', truncate_trigger, table_class);
 
     INSERT INTO periods.periods (table_name, period_name, start_column_name, end_column_name, range_type, bounds_check_constraint)
@@ -1570,7 +1687,11 @@ CREATE FUNCTION periods.add_foreign_key(
         match_type periods.fk_match_types DEFAULT 'SIMPLE',
         update_action periods.fk_actions DEFAULT 'NO ACTION',
         delete_action periods.fk_actions DEFAULT 'NO ACTION',
-        key_name name DEFAULT NULL)
+        key_name name DEFAULT NULL,
+        fk_insert_trigger name DEFAULT NULL,
+        fk_update_trigger name DEFAULT NULL,
+        uk_update_trigger name DEFAULT NULL,
+        uk_delete_trigger name DEFAULT NULL)
  RETURNS name
  LANGUAGE plpgsql
 AS
@@ -1585,10 +1706,6 @@ DECLARE
     pass integer;
     upd_action text DEFAULT '';
     del_action text DEFAULT '';
-    fk_insert_name name;
-    fk_update_name name;
-    uk_update_name name;
-    uk_delete_name name;
     foreign_columns text;
     unique_columns text;
 BEGIN
@@ -1733,23 +1850,23 @@ BEGIN
     FROM unnest(unique_row.column_names || ref_period_row.start_column_name || ref_period_row.end_column_name) WITH ORDINALITY AS u (column_name, ordinality);
 
     /* Time to make the underlying triggers */
-    fk_insert_name := periods._choose_name(ARRAY[key_name], 'fk_insert');
+    fk_insert_trigger := coalesce(fk_insert_trigger, periods._choose_name(ARRAY[key_name], 'fk_insert'));
     EXECUTE format('CREATE CONSTRAINT TRIGGER %I AFTER INSERT ON %s FROM %s DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE PROCEDURE periods.fk_insert_check(%L)',
-        fk_insert_name, table_name, unique_row.table_name, key_name);
-    fk_update_name := periods._choose_name(ARRAY[key_name], 'fk_update');
+        fk_insert_trigger, table_name, unique_row.table_name, key_name);
+    fk_update_trigger := coalesce(fk_update_trigger, periods._choose_name(ARRAY[key_name], 'fk_update'));
     EXECUTE format('CREATE CONSTRAINT TRIGGER %I AFTER UPDATE OF %s ON %s FROM %s DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE PROCEDURE periods.fk_update_check(%L)',
-        fk_update_name, foreign_columns, table_name, unique_row.table_name, key_name);
-    uk_update_name := periods._choose_name(ARRAY[key_name], 'uk_update');
+        fk_update_trigger, foreign_columns, table_name, unique_row.table_name, key_name);
+    uk_update_trigger := coalesce(uk_update_trigger, periods._choose_name(ARRAY[key_name], 'uk_update'));
     EXECUTE format('CREATE CONSTRAINT TRIGGER %I AFTER UPDATE OF %s ON %s FROM %s%s FOR EACH ROW EXECUTE PROCEDURE periods.uk_update_check(%L)',
-        uk_update_name, unique_columns, unique_row.table_name, table_name, upd_action, key_name);
-    uk_delete_name := periods._choose_name(ARRAY[key_name], 'uk_delete');
+        uk_update_trigger, unique_columns, unique_row.table_name, table_name, upd_action, key_name);
+    uk_delete_trigger := coalesce(uk_delete_trigger, periods._choose_name(ARRAY[key_name], 'uk_delete'));
     EXECUTE format('CREATE CONSTRAINT TRIGGER %I AFTER DELETE ON %s FROM %s%s FOR EACH ROW EXECUTE PROCEDURE periods.uk_delete_check(%L)',
-        uk_delete_name, unique_row.table_name, table_name, del_action, key_name);
+        uk_delete_trigger, unique_row.table_name, table_name, del_action, key_name);
 
     INSERT INTO periods.foreign_keys (key_name, table_name, column_names, period_name, unique_key, match_type, update_action, delete_action,
                                       fk_insert_trigger, fk_update_trigger, uk_update_trigger, uk_delete_trigger)
     VALUES (key_name, table_name, column_names, period_name, unique_row.key_name, match_type, update_action, delete_action,
-            fk_insert_name, fk_update_name, uk_update_name, uk_delete_name);
+            fk_insert_trigger, fk_update_trigger, uk_update_trigger, uk_delete_trigger);
 
     /* Validate the constraint on existing data */
     PERFORM periods.validate_foreign_key_new_row(key_name, NULL);
@@ -2146,7 +2263,14 @@ END;
 $function$;
 
 
-CREATE FUNCTION periods.add_system_versioning(table_class regclass)
+CREATE FUNCTION periods.add_system_versioning(
+    table_class regclass,
+    history_table_name name DEFAULT NULL,
+    view_name name DEFAULT NULL,
+    function_as_of_name name DEFAULT NULL,
+    function_between_name name DEFAULT NULL,
+    function_between_symmetric_name name DEFAULT NULL,
+    function_from_to_name name DEFAULT NULL)
  RETURNS void
  LANGUAGE plpgsql
 AS
@@ -2155,12 +2279,6 @@ $function$
 DECLARE
     schema_name name;
     table_name name;
-    history_table_name name;
-    view_name name;
-    function_as_of_name name;
-    function_between_name name;
-    function_between_symmetric_name name;
-    function_from_to_name name;
     persistence "char";
     kind "char";
     period_row periods.periods;
@@ -2226,12 +2344,12 @@ BEGIN
     END IF;
 
     /* Get all of our "fake" infrastructure ready */
-    history_table_name := periods._choose_name(ARRAY[table_name], 'history');
-    view_name := periods._choose_name(ARRAY[table_name], 'with_history');
-    function_as_of_name := periods._choose_name(ARRAY[table_name], '_as_of');
-    function_between_name := periods._choose_name(ARRAY[table_name], '_between');
-    function_between_symmetric_name := periods._choose_name(ARRAY[table_name], '_between_symmetric');
-    function_from_to_name := periods._choose_name(ARRAY[table_name], '_from_to');
+    history_table_name := coalesce(history_table_name, periods._choose_name(ARRAY[table_name], 'history'));
+    view_name := coalesce(view_name, periods._choose_name(ARRAY[table_name], 'with_history'));
+    function_as_of_name := coalesce(function_as_of_name, periods._choose_name(ARRAY[table_name], '_as_of'));
+    function_between_name := coalesce(function_between_name, periods._choose_name(ARRAY[table_name], '_between'));
+    function_between_symmetric_name := coalesce(function_between_symmetric_name, periods._choose_name(ARRAY[table_name], '_between_symmetric'));
+    function_from_to_name := coalesce(function_from_to_name, periods._choose_name(ARRAY[table_name], '_from_to'));
 
     /*
      * Create the history table.  If it already exists we check that all the

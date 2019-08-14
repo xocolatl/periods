@@ -109,16 +109,45 @@ SELECT periods.add_system_time_period('sysver', 'startname', 'endname');
  t
 (1 row)
 
+TABLE periods.periods;
+ table_name | period_name | start_column_name | end_column_name | range_type | bounds_check_constraint  
+------------+-------------+-------------------+-----------------+------------+--------------------------
+ sysver     | system_time | startname         | endname         | tstzrange  | sysver_system_time_check
+(1 row)
+
+TABLE periods.system_time_periods;
+ table_name | period_name |   infinity_check_constraint   |      generated_always_trigger       |      write_history_trigger       | truncate_trigger 
+------------+-------------+-------------------------------+-------------------------------------+----------------------------------+------------------
+ sysver     | system_time | sysver_endname_infinity_check | sysver_system_time_generated_always | sysver_system_time_write_history | sysver_truncate
+(1 row)
+
 SELECT periods.drop_system_time_period('sysver', drop_behavior => 'CASCADE', purge => true);
  drop_system_time_period 
 -------------------------
  t
 (1 row)
 
-SELECT periods.add_system_time_period('sysver', 'endname', 'startname');
+SELECT periods.add_system_time_period('sysver', 'endname', 'startname',
+        bounds_check_constraint => 'b',
+        infinity_check_constraint => 'i',
+        generated_always_trigger => 'g',
+        write_history_trigger => 'w',
+        truncate_trigger => 't');
  add_system_time_period 
 ------------------------
  t
+(1 row)
+
+TABLE periods.periods;
+ table_name | period_name | start_column_name | end_column_name | range_type | bounds_check_constraint 
+------------+-------------+-------------------+-----------------+------------+-------------------------
+ sysver     | system_time | endname           | startname       | tstzrange  | b
+(1 row)
+
+TABLE periods.system_time_periods;
+ table_name | period_name | infinity_check_constraint | generated_always_trigger | write_history_trigger | truncate_trigger 
+------------+-------------+---------------------------+--------------------------+-----------------------+------------------
+ sysver     | system_time | i                         | g                        | w                     | t
 (1 row)
 
 SELECT periods.drop_system_time_period('sysver', drop_behavior => 'CASCADE', purge => true);

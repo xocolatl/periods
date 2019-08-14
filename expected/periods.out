@@ -28,6 +28,29 @@ TABLE periods.periods;
 ------------+-------------+-------------------+-----------------+------------+-------------------------
 (0 rows)
 
+SELECT periods.add_period('basic', 'bp', 's', 'e', bounds_check_constraint => 'c');
+ add_period 
+------------
+ t
+(1 row)
+
+TABLE periods.periods;
+ table_name | period_name | start_column_name | end_column_name | range_type | bounds_check_constraint 
+------------+-------------+-------------------+-----------------+------------+-------------------------
+ basic      | bp          | s                 | e               | daterange  | c
+(1 row)
+
+SELECT periods.drop_period('basic', 'bp', purge => true);
+ drop_period 
+-------------
+ t
+(1 row)
+
+TABLE periods.periods;
+ table_name | period_name | start_column_name | end_column_name | range_type | bounds_check_constraint 
+------------+-------------+-------------------+-----------------+------------+-------------------------
+(0 rows)
+
 SELECT periods.add_period('basic', 'bp', 's', 'e');
  add_period 
 ------------

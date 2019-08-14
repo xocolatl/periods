@@ -6,13 +6,24 @@ FROM pg_settings WHERE name = 'server_version_num';
 CREATE TABLE uk (id integer, s integer, e integer, CONSTRAINT uk_pkey PRIMARY KEY (id, s, e));
 SELECT periods.add_period('uk', 'p', 's', 'e');
 SELECT periods.add_unique_key('uk', ARRAY['id'], 'p', key_name => 'uk_id_p', unique_constraint => 'uk_pkey');
+TABLE periods.unique_keys;
 INSERT INTO uk (id, s, e) VALUES (100, 1, 3), (100, 3, 4), (100, 4, 10); -- success
 INSERT INTO uk (id, s, e) VALUES (200, 1, 3), (200, 3, 4), (200, 5, 10); -- success
 INSERT INTO uk (id, s, e) VALUES (300, 1, 3), (300, 3, 5), (300, 4, 10); -- fail
 
 CREATE TABLE fk (id integer, uk_id integer, s integer, e integer, PRIMARY KEY (id));
 SELECT periods.add_period('fk', 'q', 's', 'e');
+SELECT periods.add_foreign_key('fk', ARRAY['uk_id'], 'q', 'uk_id_p',
+    key_name => 'fk_uk_id_q',
+    fk_insert_trigger => 'fki',
+    fk_update_trigger => 'fku',
+    uk_update_trigger => 'uku',
+    uk_delete_trigger => 'ukd');
+TABLE periods.foreign_keys;
+SELECT periods.drop_foreign_key('fk', 'fk_uk_id_q');
 SELECT periods.add_foreign_key('fk', ARRAY['uk_id'], 'q', 'uk_id_p', key_name => 'fk_uk_id_q');
+TABLE periods.foreign_keys;
+
 -- INSERT
 INSERT INTO fk VALUES (0, 100, 0, 1); -- fail
 INSERT INTO fk VALUES (0, 100, 0, 10); -- fail
