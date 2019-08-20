@@ -1337,7 +1337,7 @@ CREATE FUNCTION periods.add_unique_key(
         key_name name DEFAULT NULL,
         unique_constraint name DEFAULT NULL,
         exclude_constraint name DEFAULT NULL)
- RETURNS boolean
+ RETURNS name
  LANGUAGE plpgsql
 AS
 $function$
@@ -1561,7 +1561,7 @@ BEGIN
     INSERT INTO periods.unique_keys (key_name, table_name, column_names, period_name, unique_constraint, exclude_constraint)
     VALUES (key_name, table_name, column_names, period_name, unique_constraint, exclude_constraint);
 
-    RETURN true;
+    RETURN key_name;
 END;
 $function$;
 

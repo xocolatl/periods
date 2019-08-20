@@ -17,7 +17,7 @@ SELECT periods.add_period('uk', 'p', 's', 'e');
 SELECT periods.add_unique_key('uk', ARRAY['id'], 'p', key_name => 'uk_id_p', unique_constraint => 'uk_pkey');
  add_unique_key 
 ----------------
- t
+ uk_id_p
 (1 row)
 
 TABLE periods.unique_keys;

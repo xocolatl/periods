@@ -64,7 +64,7 @@ ALTER TABLE dp
 SELECT periods.add_unique_key('dp', ARRAY['id'], 'p', 'k', 'u', 'x');
  add_unique_key 
 ----------------
- t
+ k
 (1 row)
 
 ALTER TABLE dp DROP CONSTRAINT u; -- fails

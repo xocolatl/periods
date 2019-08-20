@@ -182,9 +182,9 @@ SELECT periods.add_period('no_unique', 'p', 's', 'e');
 (1 row)
 
 SELECT periods.add_unique_key('no_unique', ARRAY['col1'], 'p'); -- passes
- add_unique_key 
-----------------
- t
+  add_unique_key  
+------------------
+ no_unique_col1_p
 (1 row)
 
 SELECT periods.add_system_time_period('no_unique');
@@ -209,15 +209,15 @@ SELECT periods.drop_system_time_period('no_unique');
 (1 row)
 
 SELECT periods.add_unique_key('no_unique', ARRAY['system_time_start'], 'p'); -- passes
- add_unique_key 
-----------------
- t
+        add_unique_key         
+-------------------------------
+ no_unique_system_time_start_p
 (1 row)
 
 SELECT periods.add_unique_key('no_unique', ARRAY['system_time_end'], 'p'); -- passes
- add_unique_key 
-----------------
- t
+       add_unique_key        
+-----------------------------
+ no_unique_system_time_end_p
 (1 row)
 
 SELECT periods.add_system_time_period('no_unique'); -- fails

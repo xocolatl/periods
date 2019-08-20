@@ -105,9 +105,9 @@ SELECT periods.drop_for_portion_view('rename_test', 'p');
 ALTER TABLE rename_test DROP COLUMN id;
 /* unique_keys */
 SELECT periods.add_unique_key('rename_test', ARRAY['col2', 'col1', 'col3'], 'p');
- add_unique_key 
-----------------
- t
+        add_unique_key        
+------------------------------
+ rename_test_col2_col1_col3_p
 (1 row)
 
 TABLE periods.unique_keys;
