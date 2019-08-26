@@ -1,0 +1,11 @@
+periods (0.04-1) unstable; urgency=medium
+
+  * New upstream version.
+
+ -- Christoph Berg <myon@debian.org>  Wed, 31 Jul 2019 10:34:51 +0200
+
+periods (0.03-1) unstable; urgency=medium
+
+  * Initial release.
+
+ -- Christoph Berg <myon@debian.org>  Wed, 17 Jul 2019 12:54:33 +0200
