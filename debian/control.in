@@ -1,4 +1,4 @@
-Source: periods
+Source: postgresql-periods
 Section: database
 Priority: optional
 Maintainer: Debian PostgreSQL Maintainers <team+postgresql@tracker.debian.org>

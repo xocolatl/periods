@@ -1,3 +1,10 @@
+postgresql-periods (1.0-1) unstable; urgency=medium
+
+  * New upstream version.
+  * Rename source package to postgresql-periods.
+
+ -- Christoph Berg <myon@debian.org>  Mon, 26 Aug 2019 12:08:01 +0200
+
 periods (0.04-1) unstable; urgency=medium
 
   * New upstream version.
