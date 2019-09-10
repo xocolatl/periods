@@ -7,7 +7,8 @@ CREATE TYPE integerrange AS RANGE (SUBTYPE = integer);
 CREATE TABLE dp (
     id bigint,
     s integer,
-    e integer
+    e integer,
+    x boolean
 );
 
 /* periods */
@@ -15,7 +16,8 @@ SELECT periods.add_period('dp', 'p', 's', 'e', 'integerrange');
 DROP TYPE integerrange;
 
 /* system_time_periods */
-SELECT periods.add_system_time_period('dp');
+SELECT periods.add_system_time_period('dp', excluded_column_names => ARRAY['x']);
+ALTER TABLE dp DROP COLUMN x; -- fails
 ALTER TABLE dp DROP CONSTRAINT dp_system_time_end_infinity_check; -- fails
 DROP TRIGGER dp_system_time_generated_always ON dp; -- fails
 DROP TRIGGER dp_system_time_write_history ON dp; -- fails

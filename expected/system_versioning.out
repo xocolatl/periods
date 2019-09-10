@@ -13,17 +13,17 @@ FROM pg_settings WHERE name = 'server_version_num';
 (1 row)
 
 /* Basic SYSTEM VERSIONING */
-CREATE TABLE sysver (val text);
-SELECT periods.add_system_time_period('sysver');
+CREATE TABLE sysver (val text, flap boolean);
+SELECT periods.add_system_time_period('sysver', excluded_column_names => ARRAY['flap']);
  add_system_time_period 
 ------------------------
  t
 (1 row)
 
 TABLE periods.system_time_periods;
- table_name | period_name |       infinity_check_constraint       |      generated_always_trigger       |      write_history_trigger       | truncate_trigger 
-------------+-------------+---------------------------------------+-------------------------------------+----------------------------------+------------------
- sysver     | system_time | sysver_system_time_end_infinity_check | sysver_system_time_generated_always | sysver_system_time_write_history | sysver_truncate
+ table_name | period_name |       infinity_check_constraint       |      generated_always_trigger       |      write_history_trigger       | truncate_trigger | excluded_column_names 
+------------+-------------+---------------------------------------+-------------------------------------+----------------------------------+------------------+-----------------------
+ sysver     | system_time | sysver_system_time_end_infinity_check | sysver_system_time_generated_always | sysver_system_time_write_history | sysver_truncate  | {flap}
 (1 row)
 
 TABLE periods.system_versioning;
@@ -69,7 +69,7 @@ TABLE periods.system_versioning;
  sysver     | system_time | sysver_history     | sysver_with_history | sysver__as_of(timestamp with time zone) | sysver__between(timestamp with time zone,timestamp with time zone) | sysver__between_symmetric(timestamp with time zone,timestamp with time zone) | sysver__from_to(timestamp with time zone,timestamp with time zone)
 (1 row)
 
-INSERT INTO sysver (val) VALUES ('hello');
+INSERT INTO sysver (val, flap) VALUES ('hello', false);
 SELECT val FROM sysver;
   val  
 -------
@@ -83,6 +83,23 @@ SELECT val FROM sysver_history ORDER BY system_time_start;
 
 SELECT transaction_timestamp() AS ts1 \gset
 UPDATE sysver SET val = 'world';
+SELECT val FROM sysver;
+  val  
+-------
+ world
+(1 row)
+
+SELECT val FROM sysver_history ORDER BY system_time_start;
+  val  
+-------
+ hello
+(1 row)
+
+UPDATE sysver SET flap = not flap;
+UPDATE sysver SET flap = not flap;
+UPDATE sysver SET flap = not flap;
+UPDATE sysver SET flap = not flap;
+UPDATE sysver SET flap = not flap;
 SELECT val FROM sysver;
   val  
 -------
@@ -268,7 +285,7 @@ TABLE periods.periods;
 (0 rows)
 
 TABLE periods.system_time_periods;
- table_name | period_name | infinity_check_constraint | generated_always_trigger | write_history_trigger | truncate_trigger 
-------------+-------------+---------------------------+--------------------------+-----------------------+------------------
+ table_name | period_name | infinity_check_constraint | generated_always_trigger | write_history_trigger | truncate_trigger | excluded_column_names 
+------------+-------------+---------------------------+--------------------------+-----------------------+------------------+-----------------------
 (0 rows)
 

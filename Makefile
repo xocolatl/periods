@@ -9,6 +9,7 @@ REGRESS = install \
 		  periods \
 		  system_time_periods \
 		  system_versioning \
+		  excluded_columns \
 		  unique_foreign \
 		  for_portion_of \
 		  predicates \

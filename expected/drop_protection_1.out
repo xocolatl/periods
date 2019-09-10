@@ -10,7 +10,8 @@ CREATE TYPE integerrange AS RANGE (SUBTYPE = integer);
 CREATE TABLE dp (
     id bigint,
     s integer,
-    e integer
+    e integer,
+    x boolean
 );
 /* periods */
 SELECT periods.add_period('dp', 'p', 's', 'e', 'integerrange');
@@ -22,12 +23,14 @@ SELECT periods.add_period('dp', 'p', 's', 'e', 'integerrange');
 DROP TYPE integerrange;
 ERROR:  cannot drop rangetype "public.integerrange" because it is used in period "p" on table "dp"
 /* system_time_periods */
-SELECT periods.add_system_time_period('dp');
+SELECT periods.add_system_time_period('dp', excluded_column_names => ARRAY['x']);
  add_system_time_period 
 ------------------------
  t
 (1 row)
 
+ALTER TABLE dp DROP COLUMN x; -- fails
+ERROR:  cannot drop or rename column "x" on table "dp" because it is excluded from SYSTEM VERSIONING
 ALTER TABLE dp DROP CONSTRAINT dp_system_time_end_infinity_check; -- fails
 ERROR:  cannot drop constraint "dp_system_time_end_infinity_check" on table "dp" because it is used in SYSTEM_TIME period
 DROP TRIGGER dp_system_time_generated_always ON dp; -- fails

@@ -238,6 +238,22 @@ created both by the SQL standard and by this extension. A special
 function is provided as a convenience, but `add_period` can also be
 called.
 
+### Excluding columns
+
+It might be desirable to prevent some columns from updating the
+`SYSTEM_TIME` values. For example, perhaps your `users` table has a
+column `last_login` which gets updated all the time and you don’t want
+to generate a new historical row (see below) for just that. Ideally such
+a column would be in its own table, but if not then it can be excluded
+with an optional parameter:
+
+``` sql
+SELECT periods.add_system_time_period('example',
+            excluded_column_names => ARRAY['foo', 'bar']);
+```
+
+This functionality is not present in the SQL standard.
+
 ## `WITH SYSTEM VERSIONING`
 
 This special `SYSTEM_TIME` period can be used to keep track of changes

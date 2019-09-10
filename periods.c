@@ -14,12 +14,15 @@
 #include "commands/trigger.h"
 #include "datatype/timestamp.h"
 #include "executor/spi.h"
+#include "nodes/bitmapset.h"
 #include "utils/date.h"
+#include "utils/datum.h"
 #include "utils/elog.h"
 #if (PG_VERSION_NUM < 100000)
 #else
 #include "utils/fmgrprotos.h"
 #endif
+#include "utils/lsyscache.h"
 #include "utils/memutils.h"
 #include "utils/rel.h"
 #include "utils/timestamp.h"
@@ -109,6 +112,109 @@ GetPeriodColumnNames(Relation rel, char *period_name, char **start_name, char **
 	/* All done with SPI */
 	if (SPI_finish() != SPI_OK_FINISH)
 		elog(ERROR, "SPI_finish failed");
+}
+
+/*
+ * Check if the only columns changed in an UPDATE are columns that the user is
+ * excluding from SYSTEM VERSIONING. One possible use case for this is a
+ * "last_login timestamptz" column on a user table.  Arguably, this column
+ * should be in another table, but users have requested the feature so let's do
+ * it.
+ */
+static bool
+OnlyExcludedColumnsChanged(Relation rel, HeapTuple old_row, HeapTuple new_row)
+{
+	int				ret;
+	Oid				types[1];
+	Datum			values[1];
+	TupleDesc		tupdesc = RelationGetDescr(rel);
+	Bitmapset	   *excluded_attnums;
+
+	const char *sql =
+		"SELECT u.name "
+		"FROM periods.system_time_periods AS stp "
+		"CROSS JOIN unnest(stp.excluded_column_names) AS u (name) "
+		"WHERE stp.table_name = $1";
+
+	/* Create an empty bitmapset outside of the SPI context */
+	excluded_attnums = bms_make_singleton(0);
+	excluded_attnums = bms_del_member(excluded_attnums, 0);
+
+	if (SPI_connect() != SPI_OK_CONNECT)
+		elog(ERROR, "SPI_connect failed");
+
+	/*
+	 * XXX: Can we cache this?
+	 */
+	types[0] = OIDOID;
+	values[0] = ObjectIdGetDatum(rel->rd_id);
+	ret = SPI_execute_with_args(sql, 1, types, values, NULL, true, 0);
+	if (ret != SPI_OK_SELECT)
+		elog(ERROR, "SPI_execute failed: %d", ret);
+
+	/* Construct a bitmap of excluded attnums */
+	if (SPI_processed > 0 && SPI_tuptable != NULL)
+	{
+		TupleDesc	spitupdesc = SPI_tuptable->tupdesc;
+
+		for (int i = 0; i < SPI_processed; i++)
+		{
+			HeapTuple	tuple = SPI_tuptable->vals[i];
+			char	   *attname;
+			int16		attnum;
+
+			/* Get the attnum from the column name */
+			attname = SPI_getvalue(tuple, spitupdesc, 1);
+			attnum = SPI_fnumber(tupdesc, attname);
+			pfree(attname);
+
+			excluded_attnums = bms_add_member(excluded_attnums, attnum);
+		}
+	}
+
+	/* Don't need SPI anymore */
+	if (SPI_finish() != SPI_OK_FINISH)
+		elog(ERROR, "SPI_finish failed");
+
+	/* If there are no excluded columns, then we're done */
+	if (bms_is_empty(excluded_attnums))
+		return false;
+
+	for (int i = 1; i <= tupdesc->natts; i++)
+	{
+		Datum	old_datum, new_datum;
+		bool	old_isnull, new_isnull;
+		Oid		typid;
+		int16	typlen;
+		bool	typbyval;
+
+		/* Ignore if excluded column */
+		if (bms_is_member(i, excluded_attnums))
+			continue;
+
+		typid = SPI_gettypeid(tupdesc, i);
+		get_typlenbyval(typid, &typlen, &typbyval);
+
+		old_datum = SPI_getbinval(old_row, tupdesc, i, &old_isnull);
+		new_datum = SPI_getbinval(new_row, tupdesc, i, &new_isnull);
+
+		/*
+		 * If one value is NULL and other is not, then they are certainly not
+		 * equal.
+		 */
+		if (old_isnull != new_isnull)
+			return false;
+
+		/* If both are NULL, they can be considered equal. */
+		if (old_isnull)
+			continue;
+
+		/* Do a fairly strict binary comparison of the values */
+		if (!datumIsEqual(old_datum, new_datum, typbyval, typlen))
+			return false;
+	}
+
+	return true;
 }
 
 /*
@@ -272,11 +378,24 @@ generated_always_as_row_start_end(PG_FUNCTION_ARGS)
 				 errmsg("function \"%s\" must be fired BEFORE ROW",
 						funcname)));
 
+	/* Get Relation information */
+	rel = trigdata->tg_relation;
+	new_tupdesc = RelationGetDescr(rel);
+
 	/* Get the new data that was inserted/updated */
 	if (TRIGGER_FIRED_BY_INSERT(trigdata->tg_event))
 		new_row = trigdata->tg_trigtuple;
 	else if (TRIGGER_FIRED_BY_UPDATE(trigdata->tg_event))
+	{
+		HeapTuple old_row;
+
+		old_row = trigdata->tg_trigtuple;
 		new_row = trigdata->tg_newtuple;
+
+		/* Don't change anything if only excluded columns are being updated. */
+		if (OnlyExcludedColumnsChanged(rel, old_row, new_row))
+			return PointerGetDatum(new_row);
+	}
 	else
 	{
 		ereport(ERROR,
@@ -285,8 +404,6 @@ generated_always_as_row_start_end(PG_FUNCTION_ARGS)
 						funcname)));
 		new_row = NULL;			/* keep compiler quiet */
 	}
-	rel = trigdata->tg_relation;
-	new_tupdesc = RelationGetDescr(rel);
 
 	GetPeriodColumnNames(rel, "system_time", &start_name, &end_name);
 
@@ -324,6 +441,7 @@ write_history(PG_FUNCTION_ARGS)
 	bool			is_null;
 	Oid				history_id;
 	int				cmp;
+	bool			only_excluded_changed = false;
 
 	/*
 	 * Make sure this is being called as an AFTER ROW trigger.  Note:
@@ -343,6 +461,10 @@ write_history(PG_FUNCTION_ARGS)
 				 errmsg("function \"%s\" must be fired AFTER ROW",
 						funcname)));
 
+	/* Get Relation information */
+	rel = trigdata->tg_relation;
+	tupledesc = RelationGetDescr(rel);
+
 	/* Get the old data that was updated/deleted */
 	if (TRIGGER_FIRED_BY_INSERT(trigdata->tg_event))
 	{
@@ -353,6 +475,9 @@ write_history(PG_FUNCTION_ARGS)
 	{
 		old_row = trigdata->tg_trigtuple;
 		new_row = trigdata->tg_newtuple;
+
+		/* Did only excluded columns change? */
+		only_excluded_changed = OnlyExcludedColumnsChanged(rel, old_row, new_row);
 	}
 	else if (TRIGGER_FIRED_BY_DELETE(trigdata->tg_event))
 	{
@@ -368,8 +493,6 @@ write_history(PG_FUNCTION_ARGS)
 		old_row = NULL;			/* keep compiler quiet */
 		new_row = NULL;			/* keep compiler quiet */
 	}
-	rel = trigdata->tg_relation;
-	tupledesc = RelationGetDescr(rel);
 
 	GetPeriodColumnNames(rel, "system_time", &start_name, &end_name);
 
@@ -382,7 +505,8 @@ write_history(PG_FUNCTION_ARGS)
 	 * Validate that the period columns haven't been modified.  This can happen
 	 * with a trigger executed after generated_always_as_row_start_end().
 	 */
-	if (!TRIGGER_FIRED_BY_DELETE(trigdata->tg_event))
+	if (TRIGGER_FIRED_BY_INSERT(trigdata->tg_event) ||
+		(TRIGGER_FIRED_BY_UPDATE(trigdata->tg_event) && !only_excluded_changed))
 	{
 		Datum	start_datum = SPI_getbinval(new_row, tupledesc, start_num, &is_null);
 		Datum	end_datum = SPI_getbinval(new_row, tupledesc, end_num, &is_null);
@@ -406,6 +530,10 @@ write_history(PG_FUNCTION_ARGS)
 		if (TRIGGER_FIRED_BY_INSERT(trigdata->tg_event))
 			return PointerGetDatum(NULL);
 	}
+
+	/* If only excluded columns have changed, don't write history. */
+	if (only_excluded_changed)
+		return PointerGetDatum(NULL);
 
 	/* Compare the OLD row's start with the transaction start */
 	cmp = CompareWithCurrentDatum(typeid,

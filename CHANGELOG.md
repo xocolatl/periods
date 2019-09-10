@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+  - Add support for excluded columns. These are columns for which
+    updates do not cause `GENERATED ALWAYS AS ROW START` to change, and
+    historical rows will not be generated.
+
+    This is not in the standard, but was requested by several people.
+
 ## [1.0] – 2019-08-25
 
 ### Added
