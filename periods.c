@@ -128,17 +128,14 @@ OnlyExcludedColumnsChanged(Relation rel, HeapTuple old_row, HeapTuple new_row)
 	Oid				types[1];
 	Datum			values[1];
 	TupleDesc		tupdesc = RelationGetDescr(rel);
-	Bitmapset	   *excluded_attnums;
+	Bitmapset	   *excluded_attnums = NULL;
+	MemoryContext	mcxt = CurrentMemoryContext; /* The context outside of SPI */
 
 	const char *sql =
 		"SELECT u.name "
 		"FROM periods.system_time_periods AS stp "
 		"CROSS JOIN unnest(stp.excluded_column_names) AS u (name) "
 		"WHERE stp.table_name = $1";
-
-	/* Create an empty bitmapset outside of the SPI context */
-	excluded_attnums = bms_make_singleton(0);
-	excluded_attnums = bms_del_member(excluded_attnums, 0);
 
 	if (SPI_connect() != SPI_OK_CONNECT)
 		elog(ERROR, "SPI_connect failed");
@@ -156,19 +153,43 @@ OnlyExcludedColumnsChanged(Relation rel, HeapTuple old_row, HeapTuple new_row)
 	if (SPI_processed > 0 && SPI_tuptable != NULL)
 	{
 		TupleDesc	spitupdesc = SPI_tuptable->tupdesc;
+		bool		isnull;
 
 		for (int i = 0; i < SPI_processed; i++)
 		{
 			HeapTuple	tuple = SPI_tuptable->vals[i];
+			Datum		attdatum;
 			char	   *attname;
 			int16		attnum;
 
 			/* Get the attnum from the column name */
-			attname = SPI_getvalue(tuple, spitupdesc, 1);
+			attdatum = SPI_getbinval(tuple, spitupdesc, 1, &isnull);
+			attname = NameStr(*(DatumGetName(attdatum)));
 			attnum = SPI_fnumber(tupdesc, attname);
-			pfree(attname);
 
+			/* Make sure it's valid (should always be) */
+			if (attnum == SPI_ERROR_NOATTRIBUTE)
+				ereport(ERROR,
+						(errcode(ERRCODE_UNDEFINED_COLUMN),
+						 errmsg("column \"%s\" does not exist", attname)));
+
+			/* Just ignore system columns (should never happen) */
+			if (attnum < 0)
+				continue;
+
+			/* Add it to the bitmap set */
 			excluded_attnums = bms_add_member(excluded_attnums, attnum);
+		}
+
+		/*
+		 * If we have excluded columns, move the bitmapset out of the SPI
+		 * context.
+		 */
+		if (excluded_attnums != NULL)
+		{
+			MemoryContext spicontext = MemoryContextSwitchTo(mcxt);
+			excluded_attnums = bms_copy(excluded_attnums);
+			MemoryContextSwitchTo(spicontext);
 		}
 	}
 
@@ -177,23 +198,23 @@ OnlyExcludedColumnsChanged(Relation rel, HeapTuple old_row, HeapTuple new_row)
 		elog(ERROR, "SPI_finish failed");
 
 	/* If there are no excluded columns, then we're done */
-	if (bms_is_empty(excluded_attnums))
+	if (excluded_attnums == NULL)
 		return false;
 
 	for (int i = 1; i <= tupdesc->natts; i++)
 	{
 		Datum	old_datum, new_datum;
 		bool	old_isnull, new_isnull;
-		Oid		typid;
 		int16	typlen;
 		bool	typbyval;
+
+		/* Ignore if deleted column */
+		if (TupleDescAttr(tupdesc, i-1)->attisdropped)
+			continue;
 
 		/* Ignore if excluded column */
 		if (bms_is_member(i, excluded_attnums))
 			continue;
-
-		typid = SPI_gettypeid(tupdesc, i);
-		get_typlenbyval(typid, &typlen, &typbyval);
 
 		old_datum = SPI_getbinval(old_row, tupdesc, i, &old_isnull);
 		new_datum = SPI_getbinval(new_row, tupdesc, i, &new_isnull);
@@ -210,6 +231,8 @@ OnlyExcludedColumnsChanged(Relation rel, HeapTuple old_row, HeapTuple new_row)
 			continue;
 
 		/* Do a fairly strict binary comparison of the values */
+		typlen = TupleDescAttr(tupdesc, i-1)->attlen;
+		typbyval = TupleDescAttr(tupdesc, i-1)->attbyval;
 		if (!datumIsEqual(old_datum, new_datum, typbyval, typlen))
 			return false;
 	}
