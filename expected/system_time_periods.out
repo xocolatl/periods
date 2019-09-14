@@ -222,7 +222,7 @@ SELECT periods.add_unique_key('no_unique', ARRAY['system_time_end'], 'p'); -- pa
 
 SELECT periods.add_system_time_period('no_unique'); -- fails
 ERROR:  columns in period for SYSTEM_TIME are not allowed in UNIQUE keys
-CONTEXT:  PL/pgSQL function periods.add_system_time_period(regclass,name,name,name,name,name,name,name,name[]) line 46 at RAISE
+CONTEXT:  PL/pgSQL function periods.add_system_time_period(regclass,name,name,name,name,name,name,name,name[]) line 48 at RAISE
 SELECT periods.drop_unique_key('no_unique', 'no_unique_system_time_start_p');
  drop_unique_key 
 -----------------
@@ -278,5 +278,5 @@ SELECT periods.add_foreign_key('no_unique_ref', ARRAY['system_time_end'], 'q', '
 
 SELECT periods.add_system_time_period('no_unique_ref'); -- fails
 ERROR:  columns for SYSTEM_TIME must not be part of foreign keys
-CONTEXT:  PL/pgSQL function periods.add_system_time_period(regclass,name,name,name,name,name,name,name,name[]) line 166 at RAISE
+CONTEXT:  PL/pgSQL function periods.add_system_time_period(regclass,name,name,name,name,name,name,name,name[]) line 168 at RAISE
 DROP TABLE no_unique, no_unique_ref;

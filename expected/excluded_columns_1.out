@@ -2,7 +2,7 @@ SELECT setting::integer < 90600 AS pre_96
 FROM pg_settings WHERE name = 'server_version_num';
  pre_96 
 --------
- f
+ t
 (1 row)
 
 CREATE TABLE excl (
@@ -12,10 +12,8 @@ CREATE TABLE excl (
 );
 SELECT periods.add_system_time_period('excl', excluded_column_names => ARRAY['xmin']); -- fails
 ERROR:  cannot exclude system column "xmin"
-CONTEXT:  PL/pgSQL function periods.add_system_time_period(regclass,name,name,name,name,name,name,name,name[]) line 316 at RAISE
 SELECT periods.add_system_time_period('excl', excluded_column_names => ARRAY['none']); -- fails
 ERROR:  column "none" does not exist
-CONTEXT:  PL/pgSQL function periods.add_system_time_period(regclass,name,name,name,name,name,name,name,name[]) line 306 at RAISE
 SELECT periods.add_system_time_period('excl', excluded_column_names => ARRAY['flap']); -- passes
  add_system_time_period 
 ------------------------

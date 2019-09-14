@@ -1,9 +1,14 @@
+SELECT setting::integer < 90600 AS pre_96
+FROM pg_settings WHERE name = 'server_version_num';
+
 CREATE TABLE excl (
     value text NOT NULL,
     null_value integer,
     flap text NOT NULL
 );
-SELECT periods.add_system_time_period('excl', excluded_column_names => ARRAY['flap']);
+SELECT periods.add_system_time_period('excl', excluded_column_names => ARRAY['xmin']); -- fails
+SELECT periods.add_system_time_period('excl', excluded_column_names => ARRAY['none']); -- fails
+SELECT periods.add_system_time_period('excl', excluded_column_names => ARRAY['flap']); -- passes
 SELECT periods.add_system_versioning('excl');
 
 TABLE periods.periods;

@@ -37,6 +37,8 @@ DECLARE
     end_collation oid;
     end_notnull boolean;
 
+    excluded_column_name name;
+
     DATE_OID CONSTANT integer := 1082;
     TIMESTAMP_OID CONSTANT integer := 1114;
     TIMESTAMPTZ_OID CONSTANT integer := 1184;
@@ -310,6 +312,27 @@ BEGIN
             WHERE (a.attrelid, a.attname) = (table_class, end_column_name);
         END IF;
     END IF;
+
+    /* Make sure all the excluded columns exist */
+    FOR excluded_column_name IN
+        SELECT u.name
+        FROM unnest(excluded_column_names) AS u (name)
+        WHERE NOT EXISTS (
+            SELECT FROM pg_catalog.pg_attribute AS a
+            WHERE (a.attrelid, a.attname) = (table_class, u.name))
+    LOOP
+        RAISE EXCEPTION 'column "%" does not exist', excluded_column_name;
+    END LOOP;
+
+    /* Don't allow system columns to be excluded either */
+    FOR excluded_column_name IN
+        SELECT u.name
+        FROM unnest(excluded_column_names) AS u (name)
+        JOIN pg_catalog.pg_attribute AS a ON (a.attrelid, a.attname) = (table_class, u.name)
+        WHERE a.attnum < 0
+    LOOP
+        RAISE EXCEPTION 'cannot exclude system column "%"', excluded_column_name;
+    END LOOP;
 
     generated_always_trigger := coalesce(
         generated_always_trigger,
