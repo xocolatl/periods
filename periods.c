@@ -90,14 +90,14 @@ GetPeriodColumnNames(Relation rel, char *period_name, char **start_name, char **
 
 		ret = SPI_keepplan(qplan);
 		if (ret != 0)
-			elog(ERROR, "SPI_keepplan failed: %d", ret);
+			elog(ERROR, "SPI_keepplan returned %s", SPI_result_code_string(ret));
 	}
 
 	values[0] = ObjectIdGetDatum(rel->rd_id);
 	values[1] = CStringGetDatum(period_name);
 	ret = SPI_execute_plan(qplan, values, NULL, true, 0);
 	if (ret != SPI_OK_SELECT)
-		elog(ERROR, "SPI_execute failed: %d", ret);
+		elog(ERROR, "SPI_execute returned %s", SPI_result_code_string(ret));
 
 	/* Make sure we got one */
 	if (SPI_processed == 0)
@@ -167,13 +167,13 @@ OnlyExcludedColumnsChanged(Relation rel, HeapTuple old_row, HeapTuple new_row)
 
 		ret = SPI_keepplan(qplan);
 		if (ret != 0)
-			elog(ERROR, "SPI_keepplan failed: %d", ret);
+			elog(ERROR, "SPI_keepplan returned %s", SPI_result_code_string(ret));
 	}
 
 	values[0] = ObjectIdGetDatum(rel->rd_id);
 	ret = SPI_execute_plan(qplan, values, NULL, true, 0);
 	if (ret != SPI_OK_SELECT)
-		elog(ERROR, "SPI_execute failed: %d", ret);
+		elog(ERROR, "SPI_execute returned %s", SPI_result_code_string(ret));
 
 	/* Construct a bitmap of excluded attnums */
 	if (SPI_processed > 0 && SPI_tuptable != NULL)
@@ -304,13 +304,13 @@ GetHistoryTable(Relation rel)
 
 		ret = SPI_keepplan(qplan);
 		if (ret != 0)
-			elog(ERROR, "SPI_keepplan failed: %d", ret);
+			elog(ERROR, "SPI_keepplan returned %s", SPI_result_code_string(ret));
 	}
 
 	values[0] = ObjectIdGetDatum(rel->rd_id);
 	ret = SPI_execute_plan(qplan, values, NULL, true, 0);
 	if (ret != SPI_OK_SELECT)
-		elog(ERROR, "SPI_execute failed: %d", ret);
+		elog(ERROR, "SPI_execute returned %s", SPI_result_code_string(ret));
 
 	/* Did we get one? */
 	if (SPI_processed == 0)
