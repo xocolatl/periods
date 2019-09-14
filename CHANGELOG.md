@@ -12,6 +12,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
     This is not in the standard, but was requested by several people.
 
+  - Cache the query plans in the C code.
+
 ## [1.0] – 2019-08-25
 
 ### Added

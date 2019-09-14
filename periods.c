@@ -60,7 +60,6 @@ static void
 GetPeriodColumnNames(Relation rel, char *period_name, char **start_name, char **end_name)
 {
 	int				ret;
-	Oid				types[2];
 	Datum			values[2];
 	SPITupleTable  *tuptable;
 	bool			is_null;
@@ -71,19 +70,32 @@ GetPeriodColumnNames(Relation rel, char *period_name, char **start_name, char **
 		"SELECT p.start_column_name, p.end_column_name "
 		"FROM periods.periods AS p "
 		"WHERE (p.table_name, p.period_name) = ($1, $2)";
+	static SPIPlanPtr qplan = NULL;
 
 	if (SPI_connect() != SPI_OK_CONNECT)
 		elog(ERROR, "SPI_connect failed");
 
 	/*
 	 * Query the periods table to get the start and end columns.
-	 * XXX: Can we cache this?
+	 * Cache the plan if we haven't already.
 	 */
-	types[0] = OIDOID;
+	if (qplan == NULL)
+	{
+		Oid	types[2] = {OIDOID, NAMEOID};
+
+		qplan = SPI_prepare(sql, 2, types);
+		if (qplan == NULL)
+			elog(ERROR, "SPI_prepare returned %s for %s",
+				 SPI_result_code_string(SPI_result), sql);
+
+		ret = SPI_keepplan(qplan);
+		if (ret != 0)
+			elog(ERROR, "SPI_keepplan failed: %d", ret);
+	}
+
 	values[0] = ObjectIdGetDatum(rel->rd_id);
-	types[1] = NAMEOID;
 	values[1] = CStringGetDatum(period_name);
-	ret = SPI_execute_with_args(sql, 2, types, values, NULL, true, 0);
+	ret = SPI_execute_plan(qplan, values, NULL, true, 0);
 	if (ret != SPI_OK_SELECT)
 		elog(ERROR, "SPI_execute failed: %d", ret);
 
@@ -125,7 +137,6 @@ static bool
 OnlyExcludedColumnsChanged(Relation rel, HeapTuple old_row, HeapTuple new_row)
 {
 	int				ret;
-	Oid				types[1];
 	Datum			values[1];
 	TupleDesc		tupdesc = RelationGetDescr(rel);
 	Bitmapset	   *excluded_attnums = NULL;
@@ -136,16 +147,31 @@ OnlyExcludedColumnsChanged(Relation rel, HeapTuple old_row, HeapTuple new_row)
 		"FROM periods.system_time_periods AS stp "
 		"CROSS JOIN unnest(stp.excluded_column_names) AS u (name) "
 		"WHERE stp.table_name = $1";
+	static SPIPlanPtr qplan = NULL;
 
 	if (SPI_connect() != SPI_OK_CONNECT)
 		elog(ERROR, "SPI_connect failed");
 
 	/*
-	 * XXX: Can we cache this?
+	 * Get the excluded column names.
+	 * Cache the plan if we haven't already.
 	 */
-	types[0] = OIDOID;
+	if (qplan == NULL)
+	{
+		Oid	types[1] = {OIDOID};
+
+		qplan = SPI_prepare(sql, 1, types);
+		if (qplan == NULL)
+			elog(ERROR, "SPI_prepare returned %s for %s",
+				 SPI_result_code_string(SPI_result), sql);
+
+		ret = SPI_keepplan(qplan);
+		if (ret != 0)
+			elog(ERROR, "SPI_keepplan failed: %d", ret);
+	}
+
 	values[0] = ObjectIdGetDatum(rel->rd_id);
-	ret = SPI_execute_with_args(sql, 1, types, values, NULL, true, 0);
+	ret = SPI_execute_plan(qplan, values, NULL, true, 0);
 	if (ret != SPI_OK_SELECT)
 		elog(ERROR, "SPI_execute failed: %d", ret);
 
@@ -249,7 +275,6 @@ static Oid
 GetHistoryTable(Relation rel)
 {
 	int		ret;
-	Oid		types[1];
 	Datum	values[1];
 	Oid		result;
 	SPITupleTable  *tuptable;
@@ -259,17 +284,31 @@ GetHistoryTable(Relation rel)
 		"SELECT history_table_name::oid "
 		"FROM periods.system_versioning AS sv "
 		"WHERE sv.table_name = $1";
+	static SPIPlanPtr qplan = NULL;
 
 	if (SPI_connect() != SPI_OK_CONNECT)
 		elog(ERROR, "SPI_connect failed");
 
 	/*
 	 * Check existence in system_versioning table.
-	 * XXX: Can we cache this?
+	 * Cache the plan if we haven't already.
 	 */
-	types[0] = OIDOID;
+	if (qplan == NULL)
+	{
+		Oid	types[1] = {OIDOID};
+
+		qplan = SPI_prepare(sql, 1, types);
+		if (qplan == NULL)
+			elog(ERROR, "SPI_prepare returned %s for %s",
+				 SPI_result_code_string(SPI_result), sql);
+
+		ret = SPI_keepplan(qplan);
+		if (ret != 0)
+			elog(ERROR, "SPI_keepplan failed: %d", ret);
+	}
+
 	values[0] = ObjectIdGetDatum(rel->rd_id);
-	ret = SPI_execute_with_args(sql, 1, types, values, NULL, true, 0);
+	ret = SPI_execute_plan(qplan, values, NULL, true, 0);
 	if (ret != SPI_OK_SELECT)
 		elog(ERROR, "SPI_execute failed: %d", ret);
 
