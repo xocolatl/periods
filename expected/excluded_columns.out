@@ -84,6 +84,47 @@ SELECT value, null_value, flap, system_time_start <> :'now2' AS changed FROM exc
  howdy folks! |          0 | on   | t
 (1 row)
 
+/* Test directly setting the excluded columns */
+SELECT periods.drop_system_versioning('excl');
+ drop_system_versioning 
+------------------------
+ t
+(1 row)
+
+ALTER TABLE excl ADD COLUMN flop text;
+ALTER TABLE excl_history ADD COLUMN flop text;
+SELECT periods.add_system_versioning('excl');
+ add_system_versioning 
+-----------------------
+ 
+(1 row)
+
+SELECT periods.set_system_time_period_excluded_columns('excl', ARRAY['flap', 'flop']);
+ set_system_time_period_excluded_columns 
+-----------------------------------------
+ 
+(1 row)
+
+TABLE periods.system_time_periods;
+ table_name | period_name |      infinity_check_constraint      |     generated_always_trigger      |     write_history_trigger      | truncate_trigger | excluded_column_names 
+------------+-------------+-------------------------------------+-----------------------------------+--------------------------------+------------------+-----------------------
+ excl       | system_time | excl_system_time_end_infinity_check | excl_system_time_generated_always | excl_system_time_write_history | excl_truncate    | {flap,flop}
+(1 row)
+
+UPDATE excl SET flop = 'flop';
+SELECT value, null_value, flap, flop FROM excl;
+    value     | null_value | flap | flop 
+--------------+------------+------+------
+ howdy folks! |          0 | on   | flop
+(1 row)
+
+SELECT value, null_value, flap, flop FROM excl_history ORDER BY system_time_start;
+    value     | null_value | flap | flop 
+--------------+------------+------+------
+ hello world  |            | on   | 
+ howdy folks! |            | on   | 
+(2 rows)
+
 SELECT periods.drop_system_versioning('excl');
  drop_system_versioning 
 ------------------------

@@ -922,3 +922,44 @@ BEGIN
 END;
 $function$;
 
+CREATE FUNCTION periods.set_system_time_period_excluded_columns(
+    table_name regclass,
+    excluded_column_names name[])
+ RETURNS void
+ LANGUAGE plpgsql
+AS
+$function$
+#variable_conflict use_variable
+DECLARE
+    excluded_column_name name;
+BEGIN
+    /* Always serialize operations on our catalogs */
+    PERFORM periods._serialize(table_name);
+
+    /* Make sure all the excluded columns exist */
+    FOR excluded_column_name IN
+        SELECT u.name
+        FROM unnest(excluded_column_names) AS u (name)
+        WHERE NOT EXISTS (
+            SELECT FROM pg_catalog.pg_attribute AS a
+            WHERE (a.attrelid, a.attname) = (table_name, u.name))
+    LOOP
+        RAISE EXCEPTION 'column "%" does not exist', excluded_column_name;
+    END LOOP;
+
+    /* Don't allow system columns to be excluded either */
+    FOR excluded_column_name IN
+        SELECT u.name
+        FROM unnest(excluded_column_names) AS u (name)
+        JOIN pg_catalog.pg_attribute AS a ON (a.attrelid, a.attname) = (table_name, u.name)
+        WHERE a.attnum < 0
+    LOOP
+        RAISE EXCEPTION 'cannot exclude system column "%"', excluded_column_name;
+    END LOOP;
+
+    /* Do it. */
+    UPDATE periods.system_time_periods AS stp SET
+        excluded_column_names = excluded_column_names
+    WHERE stp.table_name = table_name;
+END;
+$function$;

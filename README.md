@@ -248,8 +248,17 @@ a column would be in its own table, but if not then it can be excluded
 with an optional parameter:
 
 ``` sql
-SELECT periods.add_system_time_period('example',
+SELECT periods.add_system_time_period(
+            'example',
             excluded_column_names => ARRAY['foo', 'bar']);
+```
+
+Excluded columns can be define after the fact, as well.
+
+``` sql
+SELECT periods.set_system_time_period_excluded_columns(
+            'example',
+            ARRAY['foo', 'bar']);
 ```
 
 This functionality is not present in the SQL standard.
