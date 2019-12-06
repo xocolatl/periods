@@ -9,6 +9,7 @@
 #else
 #include "access/table.h"
 #endif
+#include "access/tupconvert.h"
 #include "access/xact.h"
 #include "catalog/pg_type.h"
 #include "commands/trigger.h"
@@ -635,24 +636,46 @@ write_history(PG_FUNCTION_ARGS)
 	if (OidIsValid(history_id))
 	{
 		Relation	history_rel;
-		TupleDesc	history_tupdesc;
+		TupleDesc	history_tupledesc;
 		HeapTuple	history_tuple;
+		int16		history_end_num;
+		TupleConversionMap   *map;
 		Datum	   *values;
 		bool	   *nulls;
 
 		/* Open the history table for inserting */
 		history_rel = table_open(history_id, RowExclusiveLock);
-		history_tupdesc = RelationGetDescr(history_rel);
+		history_tupledesc = RelationGetDescr(history_rel);
+		history_end_num = SPI_fnumber(history_tupledesc, end_name);
+
+		/*
+		 * We may have to convert the tuple structure between the table and the
+		 * history table.
+		 *
+		 * See https://github.com/xocolatl/periods/issues/5
+		 */
+		map = convert_tuples_by_name(tupledesc, history_tupledesc, gettext_noop("could not convert row type"));
+		if (map != NULL)
+		{
+#if (PG_VERSION_NUM < 120000)
+			history_tuple = do_convert_tuple(old_row, map);
+#else
+			history_tuple = execute_attr_map_tuple(old_row, map);
+#endif
+			free_conversion_map(map);
+		}
+		else
+			history_tuple = old_row;
 
 		/* Build the new tuple for the history table */
 		values = (Datum *) palloc(tupledesc->natts * sizeof(Datum));
 		nulls = (bool *) palloc(tupledesc->natts * sizeof(bool));
 
-		heap_deform_tuple(old_row, tupledesc, values, nulls);
 		/* Modify the historical ROW END on the fly */
-		values[end_num-1] = GetRowStart(typeid);
-		nulls[end_num-1] = false;
-		history_tuple = heap_form_tuple(history_tupdesc, values, nulls);
+		heap_deform_tuple(history_tuple, history_tupledesc, values, nulls);
+		values[history_end_num-1] = GetRowStart(typeid);
+		nulls[history_end_num-1] = false;
+		history_tuple = heap_form_tuple(history_tupledesc, values, nulls);
 
 		pfree(values);
 		pfree(nulls);

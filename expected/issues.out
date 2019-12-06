@@ -1,0 +1,58 @@
+SELECT setting::integer < 100000 AS pre_10
+FROM pg_settings WHERE name = 'server_version_num';
+ pre_10 
+--------
+ f
+(1 row)
+
+CREATE TABLE issue5 (
+    id integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    value VARCHAR NOT NULL
+);
+CREATE TABLE IF NOT EXISTS issue5 (
+    id serial PRIMARY KEY,
+    value VARCHAR NOT NULL
+);
+NOTICE:  relation "issue5" already exists, skipping
+ALTER TABLE issue5
+    DROP COLUMN value;
+ALTER TABLE issue5
+    ADD COLUMN value2 varchar NOT NULL;
+INSERT INTO issue5 (value2)
+    VALUES ('hello'), ('world');
+SELECT periods.add_system_time_period ('issue5');
+ add_system_time_period 
+------------------------
+ t
+(1 row)
+
+SELECT periods.add_system_versioning ('issue5');
+NOTICE:  history table "issue5_history" created for "issue5", be sure to index it properly
+ add_system_versioning 
+-----------------------
+ 
+(1 row)
+
+BEGIN;
+SELECT now() AS ts \gset
+UPDATE issue5
+SET value2 = 'goodbye'
+WHERE id = 2;
+SELECT id, value2, system_time_start, system_time_end
+FROM issue5_with_history
+EXCEPT ALL
+VALUES (1::integer, 'hello'::varchar, '-infinity'::timestamptz, 'infinity'::timestamptz),
+       (2, 'goodbye', :'ts', 'infinity'),
+       (2, 'world', '-infinity', :'ts');
+ id | value2 | system_time_start | system_time_end 
+----+--------+-------------------+-----------------
+(0 rows)
+
+COMMIT;
+SELECT periods.drop_system_versioning('issue5', drop_behavior => 'CASCADE', purge => true);
+ drop_system_versioning 
+------------------------
+ t
+(1 row)
+
+DROP TABLE issue5;
