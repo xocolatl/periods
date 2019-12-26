@@ -11,7 +11,7 @@ CREATE TABLE issue5 (
     value VARCHAR NOT NULL
 );
 ERROR:  syntax error at or near "GENERATED"
-LINE 2:     id integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+LINE 3:     id integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
                        ^
 CREATE TABLE IF NOT EXISTS issue5 (
     id serial PRIMARY KEY,
