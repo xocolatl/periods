@@ -1,6 +1,8 @@
 SELECT setting::integer < 100000 AS pre_10
 FROM pg_settings WHERE name = 'server_version_num';
 
+/* https://github.com/xocolatl/periods/issues/5 */
+
 CREATE TABLE issue5 (
     id integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     value VARCHAR NOT NULL
