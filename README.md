@@ -292,6 +292,27 @@ We use a separate history table for this. You can create the history
 table yourself and instruct the extension to use it if you want to do
 things like add partitioning.
 
+## Altering a table with system versioning
+
+The SQL Standard does not say much about what should happen to a table
+with system versioning when the table is altered. This extension
+prevents you from dropping objects while system versioning is active,
+and other changes will be prevented in the future. The suggested way to
+make changes is:
+
+``` sql
+BEGIN;
+SELECT periods.drop_system_versioning('t');
+ALTER TABLE t ...;
+ALTER TABLE t_history ...;
+SELECT periods.add_system_versioning('t');
+COMMIT;
+```
+
+It is up to you to make sure you alter the history table in a way that
+is compatible with the main table. Re-activating system versioning will
+verify this.
+
 ## Temporal querying
 
 The SQL standard extends the `FROM` and `JOIN` clauses to allow
