@@ -48,6 +48,5 @@ UPDATE excl SET flop = 'flop';
 SELECT value, null_value, flap, flop FROM excl;
 SELECT value, null_value, flap, flop FROM excl_history ORDER BY system_time_start;
 
-SELECT periods.drop_system_versioning('excl');
-SELECT periods.drop_system_time_period('excl');
+SELECT periods.drop_system_versioning('excl', drop_behavior => 'CASCADE', purge => true);
 DROP TABLE excl;

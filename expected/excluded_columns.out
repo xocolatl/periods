@@ -125,15 +125,9 @@ SELECT value, null_value, flap, flop FROM excl_history ORDER BY system_time_star
  howdy folks! |            | on   | 
 (2 rows)
 
-SELECT periods.drop_system_versioning('excl');
+SELECT periods.drop_system_versioning('excl', drop_behavior => 'CASCADE', purge => true);
  drop_system_versioning 
 ------------------------
- t
-(1 row)
-
-SELECT periods.drop_system_time_period('excl');
- drop_system_time_period 
--------------------------
  t
 (1 row)
 

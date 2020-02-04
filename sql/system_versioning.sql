@@ -24,6 +24,7 @@ SELECT periods.add_system_versioning('sysver',
     function_from_to_name => 'custom_from_to');
 TABLE periods.system_versioning;
 SELECT periods.drop_system_versioning('sysver', drop_behavior => 'CASCADE');
+DROP TABLE custom_history_name;
 SELECT periods.add_system_versioning('sysver');
 TABLE periods.system_versioning;
 
