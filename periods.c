@@ -665,11 +665,20 @@ write_history(PG_FUNCTION_ARGS)
 			free_conversion_map(map);
 		}
 		else
+		{
 			history_tuple = old_row;
 
+			/*
+			 * Use the main table's tupledesc if there is no map so that
+			 * missing attributes are filled in.  This corrects for bug #16242
+			 * which was found by this very problem.
+			 */
+			history_tupledesc = tupledesc;
+		}
+
 		/* Build the new tuple for the history table */
-		values = (Datum *) palloc(tupledesc->natts * sizeof(Datum));
-		nulls = (bool *) palloc(tupledesc->natts * sizeof(bool));
+		values = (Datum *) palloc(history_tupledesc->natts * sizeof(Datum));
+		nulls = (bool *) palloc(history_tupledesc->natts * sizeof(bool));
 
 		/* Modify the historical ROW END on the fly */
 		heap_deform_tuple(history_tuple, history_tupledesc, values, nulls);

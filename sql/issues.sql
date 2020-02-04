@@ -44,3 +44,13 @@ COMMIT;
 
 SELECT periods.drop_system_versioning('issue5', drop_behavior => 'CASCADE', purge => true);
 DROP TABLE issue5;
+
+/* Check PostgreSQL Bug #16242 */
+CREATE TABLE pg16242 (value text);
+INSERT INTO pg16242 (value) VALUES ('helloworld');
+SELECT periods.add_system_time_period('pg16242');
+SELECT periods.add_system_versioning('pg16242');
+UPDATE pg16242 SET value = 'hello world';
+SELECT system_time_start FROM pg16242_history;
+SELECT periods.drop_system_versioning('pg16242', drop_behavior => 'CASCADE', purge => true);
+DROP TABLE pg16242;
