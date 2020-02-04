@@ -3,6 +3,7 @@ EXTENSION = periods
 DOCS = README.periods
 
 DATA = periods--1.0.sql \
+	   periods--1.1.sql \
 	   periods--1.0--1.1.sql
 
 REGRESS = install \
