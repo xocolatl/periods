@@ -5,7 +5,6 @@
 
 [![Travis Build Status](https://api.travis-ci.com/xocolatl/periods.svg?branch=master)](https://travis-ci.com/xocolatl/periods)
 [![Appveyor Build Status](https://ci.appveyor.com/api/projects/status/github/xocolatl/periods?branch=master&svg=true)](https://ci.appveyor.com/project/xocolatl/periods)
-[![codecov](https://codecov.io/gh/xocolatl/periods/branch/master/graph/badge.svg)](https://codecov.io/gh/xocolatl/periods)
 
 *compatible 9.5–12*
 
