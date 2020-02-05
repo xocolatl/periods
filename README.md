@@ -6,7 +6,7 @@
 [![Travis Build Status](https://api.travis-ci.com/xocolatl/periods.svg?branch=master)](https://travis-ci.com/xocolatl/periods)
 [![Appveyor Build Status](https://ci.appveyor.com/api/projects/status/github/xocolatl/periods?branch=master&svg=true)](https://ci.appveyor.com/project/xocolatl/periods)
 
-*compatible 9.5–12*
+*compatible 9.5–13*
 
 This extension recreates the behavior defined in
 [SQL:2016](https://www.iso.org/standard/63556.html) (originally in

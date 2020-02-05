@@ -1,3 +1,6 @@
+SELECT setting::integer < 130000 AS pre_13
+FROM pg_settings WHERE name = 'server_version_num';
+
 /* Basic period definitions with dates */
 CREATE TABLE basic (val text, s date, e date);
 TABLE periods.periods;

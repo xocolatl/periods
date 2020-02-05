@@ -1,38 +1,28 @@
+# run the testsuite on travis-ci.com
+---
+# versions to run on
+env:
+  - PG_SUPPORTED_VERSIONS=9.5
+  - PG_SUPPORTED_VERSIONS=9.6
+  - PG_SUPPORTED_VERSIONS=10
+  - PG_SUPPORTED_VERSIONS=11
+  - PG_SUPPORTED_VERSIONS=12
+  - PG_SUPPORTED_VERSIONS=13
+
+language: C
 dist: bionic
 
-sudo: required
-
-language: c
-
-compiler:
-  - gcc
-
-env:
-  matrix:
-    - PG=12 COMPONENT=12
-    - PG=11
-    - PG=10
-    - PG=9.6
-    - PG=9.5
-
 before_install:
-  - sudo /etc/init.d/postgresql stop
-  - sudo apt-get -y --purge remove postgresql libpq-dev libpq5 postgresql-client-common postgresql-common
-  - sudo rm -rf /var/lib/postgresql
-  - |
-    if [ "$COMPONENT" ]; then
-      sudo sed -i -e "s/main/main $COMPONENT/" /etc/apt/sources.list.d/pgdg*.list
-    fi
-  - sudo apt-get update
-  - sudo apt-get -y -o Dpkg::Options::=--force-confdef -o Dpkg::Options::="--force-confnew" ${PGREPO:+-t "$PGREPO"} install postgresql-${PG:?} postgresql-server-dev-${PG:?} postgresql-contrib-${PG:?}
+  - sudo apt-get update -qq
 
-before_script:
-  - sudo -u postgres createuser -s "$USER"
+install:
+  # upgrade postgresql-common for new apt.postgresql.org.sh
+  - sudo apt-get install -y postgresql-common
+  - sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -p -v $PG_SUPPORTED_VERSIONS -i
+  - sudo apt-get install -y postgresql-contrib-$PG_SUPPORTED_VERSIONS
 
 script:
   - make
   - sudo make install
-  - make installcheck
-
-after_script:
-  - cat regression.diffs || true
+  - pg_virtualenv make installcheck
+  - if test -s regression.diffs; then cat regression.diffs; fi

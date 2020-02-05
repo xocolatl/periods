@@ -2,7 +2,7 @@ SELECT setting::integer < 130000 AS pre_13
 FROM pg_settings WHERE name = 'server_version_num';
  pre_13 
 --------
- f
+ t
 (1 row)
 
 /* Basic period definitions with dates */
@@ -72,13 +72,13 @@ TABLE periods.periods;
 
 /* Test constraints */
 INSERT INTO basic (val, s, e) VALUES ('x', null, null); --fail
-ERROR:  null value in column "s" of relation "basic" violates not-null constraint
+ERROR:  null value in column "s" violates not-null constraint
 DETAIL:  Failing row contains (x, null, null).
 INSERT INTO basic (val, s, e) VALUES ('x', '3000-01-01', null); --fail
-ERROR:  null value in column "e" of relation "basic" violates not-null constraint
+ERROR:  null value in column "e" violates not-null constraint
 DETAIL:  Failing row contains (x, 01-01-3000, null).
 INSERT INTO basic (val, s, e) VALUES ('x', null, '1000-01-01'); --fail
-ERROR:  null value in column "s" of relation "basic" violates not-null constraint
+ERROR:  null value in column "s" violates not-null constraint
 DETAIL:  Failing row contains (x, null, 01-01-1000).
 INSERT INTO basic (val, s, e) VALUES ('x', '3000-01-01', '1000-01-01'); --fail
 ERROR:  new row for relation "basic" violates check constraint "basic_bp_check"

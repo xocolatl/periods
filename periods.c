@@ -740,7 +740,11 @@ write_history(PG_FUNCTION_ARGS)
 		 *
 		 * See https://github.com/xocolatl/periods/issues/5
 		 */
+#if (PG_VERSION_NUM < 130000)
 		map = convert_tuples_by_name(tupledesc, history_tupledesc, gettext_noop("could not convert row type"));
+#else
+		map = convert_tuples_by_name(tupledesc, history_tupledesc);
+#endif
 		if (map != NULL)
 		{
 #if (PG_VERSION_NUM < 120000)
