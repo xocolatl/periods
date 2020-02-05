@@ -5,7 +5,6 @@
 
 [![Travis Build Status](https://api.travis-ci.com/xocolatl/periods.svg?branch=master)](https://travis-ci.com/xocolatl/periods)
 [![Appveyor Build Status](https://ci.appveyor.com/api/projects/status/github/xocolatl/periods?branch=master&svg=true)](https://ci.appveyor.com/project/xocolatl/periods)
-[![codecov](https://codecov.io/gh/xocolatl/periods/branch/master/graph/badge.svg)](https://codecov.io/gh/xocolatl/periods)
 
 *compatible 9.5–12*
 
@@ -238,6 +237,31 @@ created both by the SQL standard and by this extension. A special
 function is provided as a convenience, but `add_period` can also be
 called.
 
+### Excluding columns
+
+It might be desirable to prevent some columns from updating the
+`SYSTEM_TIME` values. For example, perhaps your `users` table has a
+column `last_login` which gets updated all the time and you don’t want
+to generate a new historical row (see below) for just that. Ideally such
+a column would be in its own table, but if not then it can be excluded
+with an optional parameter:
+
+``` sql
+SELECT periods.add_system_time_period(
+            'example',
+            excluded_column_names => ARRAY['foo', 'bar']);
+```
+
+Excluded columns can be define after the fact, as well.
+
+``` sql
+SELECT periods.set_system_time_period_excluded_columns(
+            'example',
+            ARRAY['foo', 'bar']);
+```
+
+This functionality is not present in the SQL standard.
+
 ## `WITH SYSTEM VERSIONING`
 
 This special `SYSTEM_TIME` period can be used to keep track of changes
@@ -266,6 +290,27 @@ This instructs the system to keep a record of all changes in the table.
 We use a separate history table for this. You can create the history
 table yourself and instruct the extension to use it if you want to do
 things like add partitioning.
+
+## Altering a table with system versioning
+
+The SQL Standard does not say much about what should happen to a table
+with system versioning when the table is altered. This extension
+prevents you from dropping objects while system versioning is active,
+and other changes will be prevented in the future. The suggested way to
+make changes is:
+
+``` sql
+BEGIN;
+SELECT periods.drop_system_versioning('t');
+ALTER TABLE t ...;
+ALTER TABLE t_history ...;
+SELECT periods.add_system_versioning('t');
+COMMIT;
+```
+
+It is up to you to make sure you alter the history table in a way that
+is compatible with the main table. Re-activating system versioning will
+verify this.
 
 ## Temporal querying
 

@@ -93,7 +93,10 @@ after_build:
     New-Item -Name tmp\debug_symbols -ItemType "directory"
     Copy-Item $dll -Destination tmp\lib
     Copy-Item ($dll -replace "\.dll", ".pdb") -Destination tmp\debug_symbols
-    $zip = "periods-$(${env:APPVEYOR_REPO_COMMIT}.SubString(0,8))-pg$env:pgversion-$env:PLATFORM.zip"
+    if ($env:APPVEYOR_REPO_TAG -eq "false") {
+      $env:APPVEYOR_REPO_TAG_NAME=${env:APPVEYOR_REPO_COMMIT}.SubString(0,8)
+    }
+    $zip = "periods-$env:APPVEYOR_REPO_TAG_NAME-pg$env:pgversion-windows-$env:PLATFORM.zip"
     Compress-Archive -Path ".\tmp\*" -DestinationPath $zip
 
 test_script:

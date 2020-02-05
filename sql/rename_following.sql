@@ -21,8 +21,9 @@ ALTER TABLE rename_test RENAME CONSTRAINT rename_test_p_check TO start_before_en
 TABLE periods.periods;
 
 /* system_time_periods */
-SELECT periods.add_system_time_period('rename_test');
+SELECT periods.add_system_time_period('rename_test', excluded_column_names => ARRAY['col3']);
 TABLE periods.system_time_periods;
+ALTER TABLE rename_test RENAME col3 TO "COLUMN3";
 ALTER TABLE rename_test RENAME CONSTRAINT rename_test_system_time_end_infinity_check TO inf_check;
 ALTER TRIGGER rename_test_system_time_generated_always ON rename_test RENAME TO generated_always;
 ALTER TRIGGER rename_test_system_time_write_history ON rename_test RENAME TO write_history;

@@ -53,26 +53,29 @@ TABLE periods.periods;
 (1 row)
 
 /* system_time_periods */
-SELECT periods.add_system_time_period('rename_test');
+SELECT periods.add_system_time_period('rename_test', excluded_column_names => ARRAY['col3']);
  add_system_time_period 
 ------------------------
  t
 (1 row)
 
 TABLE periods.system_time_periods;
- table_name  | period_name |         infinity_check_constraint          |         generated_always_trigger         |         write_history_trigger         |   truncate_trigger   
--------------+-------------+--------------------------------------------+------------------------------------------+---------------------------------------+----------------------
- rename_test | system_time | rename_test_system_time_end_infinity_check | rename_test_system_time_generated_always | rename_test_system_time_write_history | rename_test_truncate
+ table_name  | period_name |         infinity_check_constraint          |         generated_always_trigger         |         write_history_trigger         |   truncate_trigger   | excluded_column_names 
+-------------+-------------+--------------------------------------------+------------------------------------------+---------------------------------------+----------------------+-----------------------
+ rename_test | system_time | rename_test_system_time_end_infinity_check | rename_test_system_time_generated_always | rename_test_system_time_write_history | rename_test_truncate | {col3}
 (1 row)
 
+ALTER TABLE rename_test RENAME col3 TO "COLUMN3";
+ERROR:  cannot drop or rename column "col3" on table "rename_test" because it is excluded from SYSTEM VERSIONING
+CONTEXT:  PL/pgSQL function periods.rename_following() line 121 at RAISE
 ALTER TABLE rename_test RENAME CONSTRAINT rename_test_system_time_end_infinity_check TO inf_check;
 ALTER TRIGGER rename_test_system_time_generated_always ON rename_test RENAME TO generated_always;
 ALTER TRIGGER rename_test_system_time_write_history ON rename_test RENAME TO write_history;
 ALTER TRIGGER rename_test_truncate ON rename_test RENAME TO trunc;
 TABLE periods.system_time_periods;
- table_name  | period_name | infinity_check_constraint | generated_always_trigger | write_history_trigger | truncate_trigger 
--------------+-------------+---------------------------+--------------------------+-----------------------+------------------
- rename_test | system_time | inf_check                 | generated_always         | write_history         | trunc
+ table_name  | period_name | infinity_check_constraint | generated_always_trigger | write_history_trigger | truncate_trigger | excluded_column_names 
+-------------+-------------+---------------------------+--------------------------+-----------------------+------------------+-----------------------
+ rename_test | system_time | inf_check                 | generated_always         | write_history         | trunc            | {col3}
 (1 row)
 
 /* for_portion_views */
@@ -147,19 +150,19 @@ TABLE periods.foreign_keys;
 
 ALTER TABLE rename_test_ref RENAME COLUMN "COLUMN1" TO col1; -- fails
 ERROR:  cannot drop or rename column "COLUMN1" on table "rename_test_ref" because it is used in period foreign key "rename_test_ref_col2_COLUMN1_col3_q"
-CONTEXT:  PL/pgSQL function periods.rename_following() line 194 at RAISE
+CONTEXT:  PL/pgSQL function periods.rename_following() line 210 at RAISE
 ALTER TRIGGER "rename_test_ref_col2_COLUMN1_col3_q_fk_insert" ON rename_test_ref RENAME TO fk_insert;
 ERROR:  cannot drop or rename trigger "rename_test_ref_col2_COLUMN1_col3_q_fk_insert" on table "rename_test_ref" because it is used in period foreign key "rename_test_ref_col2_COLUMN1_col3_q"
-CONTEXT:  PL/pgSQL function periods.rename_following() line 229 at RAISE
+CONTEXT:  PL/pgSQL function periods.rename_following() line 245 at RAISE
 ALTER TRIGGER "rename_test_ref_col2_COLUMN1_col3_q_fk_update" ON rename_test_ref RENAME TO fk_update;
 ERROR:  cannot drop or rename trigger "rename_test_ref_col2_COLUMN1_col3_q_fk_update" on table "rename_test_ref" because it is used in period foreign key "rename_test_ref_col2_COLUMN1_col3_q"
-CONTEXT:  PL/pgSQL function periods.rename_following() line 229 at RAISE
+CONTEXT:  PL/pgSQL function periods.rename_following() line 245 at RAISE
 ALTER TRIGGER "rename_test_ref_col2_COLUMN1_col3_q_uk_update" ON rename_test RENAME TO uk_update;
 ERROR:  cannot drop or rename trigger "rename_test_ref_col2_COLUMN1_col3_q_uk_update" on table "rename_test" because it is used in period foreign key "rename_test_ref_col2_COLUMN1_col3_q"
-CONTEXT:  PL/pgSQL function periods.rename_following() line 229 at RAISE
+CONTEXT:  PL/pgSQL function periods.rename_following() line 245 at RAISE
 ALTER TRIGGER "rename_test_ref_col2_COLUMN1_col3_q_uk_delete" ON rename_test RENAME TO uk_delete;
 ERROR:  cannot drop or rename trigger "rename_test_ref_col2_COLUMN1_col3_q_uk_delete" on table "rename_test" because it is used in period foreign key "rename_test_ref_col2_COLUMN1_col3_q"
-CONTEXT:  PL/pgSQL function periods.rename_following() line 229 at RAISE
+CONTEXT:  PL/pgSQL function periods.rename_following() line 245 at RAISE
 TABLE periods.foreign_keys;
               key_name               |   table_name    |    column_names     | period_name |          unique_key          | match_type | delete_action | update_action |               fk_insert_trigger               |               fk_update_trigger               |               uk_update_trigger               |               uk_delete_trigger               
 -------------------------------------+-----------------+---------------------+-------------+------------------------------+------------+---------------+---------------+-----------------------------------------------+-----------------------------------------------+-----------------------------------------------+-----------------------------------------------

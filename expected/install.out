@@ -1,3 +1,12 @@
 /* Once support for 9.5 has passed, use CASCADE */
 CREATE EXTENSION IF NOT EXISTS btree_gist;
-CREATE EXTENSION periods;
+/* Once support for 9.6 has passed, just create the extension */
+CREATE EXTENSION periods VERSION '1.1';
+SELECT extversion
+FROM pg_extension
+WHERE extname = 'periods';
+ extversion 
+------------
+ 1.1
+(1 row)
+

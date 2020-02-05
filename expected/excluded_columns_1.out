@@ -1,0 +1,132 @@
+SELECT setting::integer < 90600 AS pre_96
+FROM pg_settings WHERE name = 'server_version_num';
+ pre_96 
+--------
+ t
+(1 row)
+
+CREATE TABLE excl (
+    value text NOT NULL,
+    null_value integer,
+    flap text NOT NULL
+);
+SELECT periods.add_system_time_period('excl', excluded_column_names => ARRAY['xmin']); -- fails
+ERROR:  cannot exclude system column "xmin"
+SELECT periods.add_system_time_period('excl', excluded_column_names => ARRAY['none']); -- fails
+ERROR:  column "none" does not exist
+SELECT periods.add_system_time_period('excl', excluded_column_names => ARRAY['flap']); -- passes
+ add_system_time_period 
+------------------------
+ t
+(1 row)
+
+SELECT periods.add_system_versioning('excl');
+NOTICE:  history table "excl_history" created for "excl", be sure to index it properly
+ add_system_versioning 
+-----------------------
+ 
+(1 row)
+
+TABLE periods.periods;
+ table_name | period_name | start_column_name | end_column_name | range_type | bounds_check_constraint 
+------------+-------------+-------------------+-----------------+------------+-------------------------
+ excl       | system_time | system_time_start | system_time_end | tstzrange  | excl_system_time_check
+(1 row)
+
+TABLE periods.system_time_periods;
+ table_name | period_name |      infinity_check_constraint      |     generated_always_trigger      |     write_history_trigger      | truncate_trigger | excluded_column_names 
+------------+-------------+-------------------------------------+-----------------------------------+--------------------------------+------------------+-----------------------
+ excl       | system_time | excl_system_time_end_infinity_check | excl_system_time_generated_always | excl_system_time_write_history | excl_truncate    | {flap}
+(1 row)
+
+TABLE periods.system_versioning;
+ table_name | period_name | history_table_name |     view_name     |              func_as_of               |                           func_between                           |                           func_between_symmetric                           |                           func_from_to                           
+------------+-------------+--------------------+-------------------+---------------------------------------+------------------------------------------------------------------+----------------------------------------------------------------------------+------------------------------------------------------------------
+ excl       | system_time | excl_history       | excl_with_history | excl__as_of(timestamp with time zone) | excl__between(timestamp with time zone,timestamp with time zone) | excl__between_symmetric(timestamp with time zone,timestamp with time zone) | excl__from_to(timestamp with time zone,timestamp with time zone)
+(1 row)
+
+BEGIN;
+SELECT CURRENT_TIMESTAMP AS now \gset
+INSERT INTO excl (value, flap) VALUES ('hello world', 'off');
+COMMIT;
+SELECT value, null_value, flap, system_time_start <> :'now' AS changed FROM excl;
+    value    | null_value | flap | changed 
+-------------+------------+------+---------
+ hello world |            | off  | f
+(1 row)
+
+UPDATE excl SET flap = 'off';
+UPDATE excl SET flap = 'on';
+UPDATE excl SET flap = 'off';
+UPDATE excl SET flap = 'on';
+SELECT value, null_value, flap, system_time_start <> :'now' AS changed FROM excl;
+    value    | null_value | flap | changed 
+-------------+------------+------+---------
+ hello world |            | on   | f
+(1 row)
+
+BEGIN;
+SELECT CURRENT_TIMESTAMP AS now2 \gset
+UPDATE excl SET value = 'howdy folks!';
+COMMIT;
+SELECT value, null_value, flap, system_time_start <> :'now' AS changed FROM excl;
+    value     | null_value | flap | changed 
+--------------+------------+------+---------
+ howdy folks! |            | on   | t
+(1 row)
+
+UPDATE excl SET null_value = 0;
+SELECT value, null_value, flap, system_time_start <> :'now2' AS changed FROM excl;
+    value     | null_value | flap | changed 
+--------------+------------+------+---------
+ howdy folks! |          0 | on   | t
+(1 row)
+
+/* Test directly setting the excluded columns */
+SELECT periods.drop_system_versioning('excl');
+ drop_system_versioning 
+------------------------
+ t
+(1 row)
+
+ALTER TABLE excl ADD COLUMN flop text;
+ALTER TABLE excl_history ADD COLUMN flop text;
+SELECT periods.add_system_versioning('excl');
+ add_system_versioning 
+-----------------------
+ 
+(1 row)
+
+SELECT periods.set_system_time_period_excluded_columns('excl', ARRAY['flap', 'flop']);
+ set_system_time_period_excluded_columns 
+-----------------------------------------
+ 
+(1 row)
+
+TABLE periods.system_time_periods;
+ table_name | period_name |      infinity_check_constraint      |     generated_always_trigger      |     write_history_trigger      | truncate_trigger | excluded_column_names 
+------------+-------------+-------------------------------------+-----------------------------------+--------------------------------+------------------+-----------------------
+ excl       | system_time | excl_system_time_end_infinity_check | excl_system_time_generated_always | excl_system_time_write_history | excl_truncate    | {flap,flop}
+(1 row)
+
+UPDATE excl SET flop = 'flop';
+SELECT value, null_value, flap, flop FROM excl;
+    value     | null_value | flap | flop 
+--------------+------------+------+------
+ howdy folks! |          0 | on   | flop
+(1 row)
+
+SELECT value, null_value, flap, flop FROM excl_history ORDER BY system_time_start;
+    value     | null_value | flap | flop 
+--------------+------------+------+------
+ hello world  |            | on   | 
+ howdy folks! |            | on   | 
+(2 rows)
+
+SELECT periods.drop_system_versioning('excl', drop_behavior => 'CASCADE', purge => true);
+ drop_system_versioning 
+------------------------
+ t
+(1 row)
+
+DROP TABLE excl;

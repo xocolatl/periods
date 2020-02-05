@@ -11,8 +11,8 @@ FROM pg_settings WHERE name = 'server_version_num';
 
 /* Basic SYSTEM VERSIONING */
 
-CREATE TABLE sysver (val text);
-SELECT periods.add_system_time_period('sysver');
+CREATE TABLE sysver (val text, flap boolean);
+SELECT periods.add_system_time_period('sysver', excluded_column_names => ARRAY['flap']);
 TABLE periods.system_time_periods;
 TABLE periods.system_versioning;
 SELECT periods.add_system_versioning('sysver',
@@ -24,16 +24,25 @@ SELECT periods.add_system_versioning('sysver',
     function_from_to_name => 'custom_from_to');
 TABLE periods.system_versioning;
 SELECT periods.drop_system_versioning('sysver', drop_behavior => 'CASCADE');
+DROP TABLE custom_history_name;
 SELECT periods.add_system_versioning('sysver');
 TABLE periods.system_versioning;
 
-INSERT INTO sysver (val) VALUES ('hello');
+INSERT INTO sysver (val, flap) VALUES ('hello', false);
 SELECT val FROM sysver;
 SELECT val FROM sysver_history ORDER BY system_time_start;
 
 SELECT transaction_timestamp() AS ts1 \gset
 
 UPDATE sysver SET val = 'world';
+SELECT val FROM sysver;
+SELECT val FROM sysver_history ORDER BY system_time_start;
+
+UPDATE sysver SET flap = not flap;
+UPDATE sysver SET flap = not flap;
+UPDATE sysver SET flap = not flap;
+UPDATE sysver SET flap = not flap;
+UPDATE sysver SET flap = not flap;
 SELECT val FROM sysver;
 SELECT val FROM sysver_history ORDER BY system_time_start;
 

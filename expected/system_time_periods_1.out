@@ -116,9 +116,9 @@ TABLE periods.periods;
 (1 row)
 
 TABLE periods.system_time_periods;
- table_name | period_name |   infinity_check_constraint   |      generated_always_trigger       |      write_history_trigger       | truncate_trigger 
-------------+-------------+-------------------------------+-------------------------------------+----------------------------------+------------------
- sysver     | system_time | sysver_endname_infinity_check | sysver_system_time_generated_always | sysver_system_time_write_history | sysver_truncate
+ table_name | period_name |   infinity_check_constraint   |      generated_always_trigger       |      write_history_trigger       | truncate_trigger | excluded_column_names 
+------------+-------------+-------------------------------+-------------------------------------+----------------------------------+------------------+-----------------------
+ sysver     | system_time | sysver_endname_infinity_check | sysver_system_time_generated_always | sysver_system_time_write_history | sysver_truncate  | {}
 (1 row)
 
 SELECT periods.drop_system_time_period('sysver', drop_behavior => 'CASCADE', purge => true);
@@ -145,9 +145,9 @@ TABLE periods.periods;
 (1 row)
 
 TABLE periods.system_time_periods;
- table_name | period_name | infinity_check_constraint | generated_always_trigger | write_history_trigger | truncate_trigger 
-------------+-------------+---------------------------+--------------------------+-----------------------+------------------
- sysver     | system_time | i                         | g                        | w                     | t
+ table_name | period_name | infinity_check_constraint | generated_always_trigger | write_history_trigger | truncate_trigger | excluded_column_names 
+------------+-------------+---------------------------+--------------------------+-----------------------+------------------+-----------------------
+ sysver     | system_time | i                         | g                        | w                     | t                | {}
 (1 row)
 
 SELECT periods.drop_system_time_period('sysver', drop_behavior => 'CASCADE', purge => true);
@@ -169,8 +169,8 @@ TABLE periods.periods;
 (0 rows)
 
 TABLE periods.system_time_periods;
- table_name | period_name | infinity_check_constraint | generated_always_trigger | write_history_trigger | truncate_trigger 
-------------+-------------+---------------------------+--------------------------+-----------------------+------------------
+ table_name | period_name | infinity_check_constraint | generated_always_trigger | write_history_trigger | truncate_trigger | excluded_column_names 
+------------+-------------+---------------------------+--------------------------+-----------------------+------------------+-----------------------
 (0 rows)
 
 /* Forbid UNIQUE keys on system_time columns */

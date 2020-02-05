@@ -53,26 +53,28 @@ TABLE periods.periods;
 (1 row)
 
 /* system_time_periods */
-SELECT periods.add_system_time_period('rename_test');
+SELECT periods.add_system_time_period('rename_test', excluded_column_names => ARRAY['col3']);
  add_system_time_period 
 ------------------------
  t
 (1 row)
 
 TABLE periods.system_time_periods;
- table_name  | period_name |         infinity_check_constraint          |         generated_always_trigger         |         write_history_trigger         |   truncate_trigger   
--------------+-------------+--------------------------------------------+------------------------------------------+---------------------------------------+----------------------
- rename_test | system_time | rename_test_system_time_end_infinity_check | rename_test_system_time_generated_always | rename_test_system_time_write_history | rename_test_truncate
+ table_name  | period_name |         infinity_check_constraint          |         generated_always_trigger         |         write_history_trigger         |   truncate_trigger   | excluded_column_names 
+-------------+-------------+--------------------------------------------+------------------------------------------+---------------------------------------+----------------------+-----------------------
+ rename_test | system_time | rename_test_system_time_end_infinity_check | rename_test_system_time_generated_always | rename_test_system_time_write_history | rename_test_truncate | {col3}
 (1 row)
 
+ALTER TABLE rename_test RENAME col3 TO "COLUMN3";
+ERROR:  cannot drop or rename column "col3" on table "rename_test" because it is excluded from SYSTEM VERSIONING
 ALTER TABLE rename_test RENAME CONSTRAINT rename_test_system_time_end_infinity_check TO inf_check;
 ALTER TRIGGER rename_test_system_time_generated_always ON rename_test RENAME TO generated_always;
 ALTER TRIGGER rename_test_system_time_write_history ON rename_test RENAME TO write_history;
 ALTER TRIGGER rename_test_truncate ON rename_test RENAME TO trunc;
 TABLE periods.system_time_periods;
- table_name  | period_name | infinity_check_constraint | generated_always_trigger | write_history_trigger | truncate_trigger 
--------------+-------------+---------------------------+--------------------------+-----------------------+------------------
- rename_test | system_time | inf_check                 | generated_always         | write_history         | trunc
+ table_name  | period_name | infinity_check_constraint | generated_always_trigger | write_history_trigger | truncate_trigger | excluded_column_names 
+-------------+-------------+---------------------------+--------------------------+-----------------------+------------------+-----------------------
+ rename_test | system_time | inf_check                 | generated_always         | write_history         | trunc            | {col3}
 (1 row)
 
 /* for_portion_views */
