@@ -138,6 +138,7 @@ static bool
 OnlyExcludedColumnsChanged(Relation rel, HeapTuple old_row, HeapTuple new_row)
 {
 	int				ret;
+	int				i;
 	Datum			values[1];
 	TupleDesc		tupdesc = RelationGetDescr(rel);
 	Bitmapset	   *excluded_attnums = NULL;
@@ -181,8 +182,9 @@ OnlyExcludedColumnsChanged(Relation rel, HeapTuple old_row, HeapTuple new_row)
 	{
 		TupleDesc	spitupdesc = SPI_tuptable->tupdesc;
 		bool		isnull;
+		int			i;
 
-		for (int i = 0; i < SPI_processed; i++)
+		for (i = 0; i < SPI_processed; i++)
 		{
 			HeapTuple	tuple = SPI_tuptable->vals[i];
 			Datum		attdatum;
@@ -228,7 +230,7 @@ OnlyExcludedColumnsChanged(Relation rel, HeapTuple old_row, HeapTuple new_row)
 	if (excluded_attnums == NULL)
 		return false;
 
-	for (int i = 1; i <= tupdesc->natts; i++)
+	for (i = 1; i <= tupdesc->natts; i++)
 	{
 		Datum	old_datum, new_datum;
 		bool	old_isnull, new_isnull;
