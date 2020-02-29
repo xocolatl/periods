@@ -3,7 +3,7 @@ SELECT setting::integer < 110000 AS pre_11,
 FROM pg_settings WHERE name = 'server_version_num';
  pre_11 | pre_96 
 --------+--------
- f      | f
+ t      | f
 (1 row)
 
 /* Tests for access control on the history tables */
@@ -629,13 +629,13 @@ INSERT INTO retention (value) VALUES (1);
 UPDATE retention SET value = 2;
 SET ROLE TO periods_acl_3;
 DELETE FROM retention_history; -- fail
-ERROR:  permission denied for table retention_history
+ERROR:  permission denied for relation retention_history
 SET ROLE TO periods_acl_2;
 DELETE FROM retention_history; -- fail
-ERROR:  permission denied for table retention_history
+ERROR:  permission denied for relation retention_history
 SET ROLE TO periods_acl_1;
 DELETE FROM retention_history; -- fail
-ERROR:  permission denied for table retention_history
+ERROR:  permission denied for relation retention_history
 -- test what the docs say to do
 BEGIN;
 SELECT periods.drop_system_versioning('retention');

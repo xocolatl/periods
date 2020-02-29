@@ -3,6 +3,7 @@
 
 /* This extension is non-relocatable */
 CREATE SCHEMA periods;
+GRANT USAGE ON SCHEMA periods TO PUBLIC;
 
 CREATE TYPE periods.drop_behavior AS ENUM ('CASCADE', 'RESTRICT');
 CREATE TYPE periods.fk_actions AS ENUM ('CASCADE', 'SET NULL', 'SET DEFAULT', 'RESTRICT', 'NO ACTION');
@@ -2371,6 +2372,8 @@ DECLARE
     kind "char";
     period_row periods.periods;
     history_table_id oid;
+    sql text;
+    grantees text;
 BEGIN
     IF table_class IS NULL THEN
         RAISE EXCEPTION 'no table name specified';
@@ -2490,6 +2493,17 @@ BEGIN
 
         /* Make sure the owner is correct */
         EXECUTE format('ALTER TABLE %s OWNER TO %I', history_table_id::regclass, table_owner);
+
+        /*
+         * Remove all privileges other than SELECT from everyone on the history
+         * table.  We do this without error because some privileges may have
+         * been added in order to do maintenance while we were disconnected.
+         *
+         * We start by doing the table owner because that will make sure we
+         * don't have NULL in pg_class.relacl.
+         */
+        --EXECUTE format('REVOKE INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER ON TABLE %s FROM %I',
+            --history_table_id::regclass, table_owner);
     ELSE
         EXECUTE format('CREATE TABLE %1$I.%2$I (LIKE %1$I.%3$I)', schema_name, history_table_name, table_name);
         history_table_id := format('%I.%I', schema_name, history_table_name)::regclass;
@@ -2570,6 +2584,64 @@ BEGIN
         $$, schema_name, function_from_to_name, view_name, period_row.start_column_name, period_row.end_column_name);
     EXECUTE format('ALTER FUNCTION %1$I.%2$I(timestamp with time zone, timestamp with time zone) OWNER TO %3$I',
         schema_name, function_from_to_name, table_owner);
+
+    /* Set privileges on history objects */
+    FOR sql IN
+        SELECT format('REVOKE ALL ON %s %s FROM %s',
+                      CASE object_type
+                          WHEN 'r' THEN 'TABLE'
+                          WHEN 'v' THEN 'TABLE'
+                          WHEN 'f' THEN 'FUNCTION'
+                      ELSE 'ERROR'
+                      END,
+                      string_agg(DISTINCT object_name, ', '),
+                      string_agg(DISTINCT quote_ident(COALESCE(a.rolname, 'public')), ', '))
+        FROM (
+            SELECT c.relkind AS object_type,
+                   c.oid::regclass::text AS object_name,
+                   acl.grantee AS grantee
+            FROM pg_class AS c
+            JOIN pg_namespace AS n ON n.oid = c.relnamespace
+            CROSS JOIN LATERAL aclexplode(COALESCE(c.relacl, acldefault('r', c.relowner))) AS acl
+            WHERE n.nspname = schema_name
+              AND c.relname IN (history_table_name, view_name)
+
+            UNION ALL
+
+            SELECT 'f',
+                   p.oid::regprocedure::text,
+                   acl.grantee
+            FROM pg_proc AS p
+            CROSS JOIN LATERAL aclexplode(COALESCE(p.proacl, acldefault('f', p.proowner))) AS acl
+            WHERE p.oid = ANY (ARRAY[
+                    format('%I.%I(timestamp with time zone)', schema_name, function_as_of_name)::regprocedure,
+                    format('%I.%I(timestamp with time zone,timestamp with time zone)', schema_name, function_between_name)::regprocedure,
+                    format('%I.%I(timestamp with time zone,timestamp with time zone)', schema_name, function_between_symmetric_name)::regprocedure,
+                    format('%I.%I(timestamp with time zone,timestamp with time zone)', schema_name, function_from_to_name)::regprocedure
+                ])
+        ) AS objects
+        LEFT JOIN pg_authid AS a ON a.oid = objects.grantee
+        GROUP BY objects.object_type
+    LOOP
+        EXECUTE sql;
+    END LOOP;
+
+    FOR grantees IN
+        SELECT string_agg(acl.grantee::regrole::text, ', ')
+        FROM pg_class AS c
+        CROSS JOIN LATERAL aclexplode(COALESCE(c.relacl, acldefault('r', c.relowner))) AS acl
+        WHERE c.oid = table_class
+          AND acl.privilege_type = 'SELECT'
+    LOOP
+        EXECUTE format('GRANT SELECT ON TABLE %1$I.%2$I, %1$I.%3$I TO %4$s',
+                       schema_name, history_table_name, view_name, grantees);
+        EXECUTE format('GRANT EXECUTE ON FUNCTION %s, %s, %s, %s TO %s',
+                       format('%I.%I(timestamp with time zone)', schema_name, function_as_of_name)::regprocedure,
+                       format('%I.%I(timestamp with time zone,timestamp with time zone)', schema_name, function_between_name)::regprocedure,
+                       format('%I.%I(timestamp with time zone,timestamp with time zone)', schema_name, function_between_symmetric_name)::regprocedure,
+                       format('%I.%I(timestamp with time zone,timestamp with time zone)', schema_name, function_from_to_name)::regprocedure,
+                       grantees);
+    END LOOP;
 
     /* Register it */
     INSERT INTO periods.system_versioning (table_name, period_name, history_table_name, view_name,
@@ -3287,6 +3359,234 @@ BEGIN
     LOOP
         EXECUTE cmd;
     END LOOP;
+
+    /* Check GRANTs */
+    IF EXISTS (
+        SELECT FROM pg_event_trigger_ddl_commands() AS ev_ddl
+        WHERE ev_ddl.command_tag = 'GRANT')
+    THEN
+        FOR r IN
+            SELECT *,
+                   EXISTS (
+                       SELECT
+                       FROM pg_class AS _c
+                       CROSS JOIN LATERAL aclexplode(COALESCE(_c.relacl, acldefault('r', _c.relowner))) AS _acl
+                       WHERE _c.oid = objects.table_name
+                         AND _acl.grantee = objects.grantee
+                         AND _acl.privilege_type = 'SELECT'
+                   ) AS on_base_table
+            FROM (
+                SELECT sv.table_name,
+                       c.oid::regclass::text AS object_name,
+                       c.relkind AS object_type,
+                       acl.privilege_type,
+                       acl.privilege_type AS base_privilege_type,
+                       acl.grantee,
+                       'h' AS history_or_portion
+                FROM periods.system_versioning AS sv
+                JOIN pg_class AS c ON c.oid IN (sv.history_table_name, sv.view_name)
+                CROSS JOIN LATERAL aclexplode(COALESCE(c.relacl, acldefault('r', c.relowner))) AS acl
+
+                UNION ALL
+
+                SELECT fpv.table_name,
+                       c.oid::regclass::text,
+                       c.relkind,
+                       acl.privilege_type,
+                       acl.privilege_type,
+                       acl.grantee,
+                       'p' AS history_or_portion
+                FROM periods.for_portion_views AS fpv
+                JOIN pg_class AS c ON c.oid = fpv.view_name
+                CROSS JOIN LATERAL aclexplode(COALESCE(c.relacl, acldefault('r', c.relowner))) AS acl
+
+                UNION ALL
+
+                SELECT sv.table_name,
+                       p.oid::regprocedure::text,
+                       'f',
+                       acl.privilege_type,
+                       'SELECT',
+                       acl.grantee,
+                       'h'
+                FROM periods.system_versioning AS sv
+                JOIN pg_proc AS p ON p.oid IN (sv.func_as_of, sv.func_between, sv.func_between_symmetric, sv.func_from_to)
+                CROSS JOIN LATERAL aclexplode(COALESCE(p.proacl, acldefault('f', p.proowner))) AS acl
+            ) AS objects
+            ORDER BY object_name, object_type, privilege_type
+        LOOP
+            IF
+                r.history_or_portion = 'h' AND
+                (r.object_type, r.privilege_type) NOT IN (('r', 'SELECT'), ('v', 'SELECT'), ('f', 'EXECUTE'))
+            THEN
+                RAISE EXCEPTION 'cannot grant % to "%"; history objects are read-only',
+                    r.privilege_type, r.object_name;
+            END IF;
+
+            IF NOT r.on_base_table THEN
+                RAISE EXCEPTION 'cannot grant % directly to "%"; grant % to "%" instead',
+                    r.privilege_type, r.object_name, r.base_privilege_type, r.table_name;
+            END IF;
+        END LOOP;
+
+        /* Propagate GRANTs */
+        FOR cmd IN
+            SELECT format('GRANT %s ON %s %s TO %s',
+                          string_agg(DISTINCT privilege_type, ', '),
+                          object_type,
+                          string_agg(DISTINCT object_name, ', '),
+                          string_agg(DISTINCT COALESCE(a.rolname, 'public'), ', '))
+            FROM (
+                SELECT 'TABLE' AS object_type,
+                       hc.oid::regclass::text AS object_name,
+                       'SELECT' AS privilege_type,
+                       acl.grantee
+                FROM periods.system_versioning AS sv
+                JOIN pg_class AS c ON c.oid = sv.table_name
+                CROSS JOIN LATERAL aclexplode(COALESCE(c.relacl, acldefault('r', c.relowner))) AS acl
+                JOIN pg_class AS hc ON hc.oid IN (sv.history_table_name, sv.view_name)
+                WHERE acl.privilege_type = 'SELECT'
+                  AND NOT has_table_privilege(acl.grantee, hc.oid, 'SELECT')
+
+                UNION ALL
+
+                SELECT 'TABLE',
+                       fpc.oid::regclass::text,
+                       acl.privilege_type,
+                       acl.grantee
+                FROM periods.for_portion_views AS fpv
+                JOIN pg_class AS c ON c.oid = fpv.table_name
+                CROSS JOIN LATERAL aclexplode(COALESCE(c.relacl, acldefault('r', c.relowner))) AS acl
+                JOIN pg_class AS fpc ON fpc.oid = fpv.view_name
+                WHERE NOT has_table_privilege(acl.grantee, fpc.oid, acl.privilege_type)
+
+                UNION ALL
+
+                SELECT 'FUNCTION',
+                       hp.oid::regprocedure::text,
+                       'EXECUTE',
+                       acl.grantee
+                FROM periods.system_versioning AS sv
+                JOIN pg_class AS c ON c.oid = sv.table_name
+                CROSS JOIN LATERAL aclexplode(COALESCE(c.relacl, acldefault('r', c.relowner))) AS acl
+                JOIN pg_proc AS hp ON hp.oid IN (sv.func_as_of, sv.func_between, sv.func_between_symmetric, sv.func_from_to)
+                WHERE acl.privilege_type = 'SELECT'
+                  AND NOT has_function_privilege(acl.grantee, hp.oid, 'EXECUTE')
+            ) AS objects
+            LEFT JOIN pg_authid AS a ON a.oid = objects.grantee
+            GROUP BY object_type
+        LOOP
+            EXECUTE cmd;
+        END LOOP;
+    END IF;
+
+    /* Check REVOKEs */
+    IF EXISTS (
+        SELECT FROM pg_event_trigger_ddl_commands() AS ev_ddl
+        WHERE ev_ddl.command_tag = 'REVOKE')
+    THEN
+        FOR r IN
+            SELECT sv.table_name,
+                   hc.oid::regclass::text AS object_name,
+                   acl.privilege_type,
+                   acl.privilege_type AS base_privilege_type
+            FROM periods.system_versioning AS sv
+            JOIN pg_class AS c ON c.oid = sv.table_name
+            CROSS JOIN LATERAL aclexplode(COALESCE(c.relacl, acldefault('r', c.relowner))) AS acl
+            JOIN pg_class AS hc ON hc.oid IN (sv.history_table_name, sv.view_name)
+            WHERE acl.privilege_type = 'SELECT'
+              AND NOT EXISTS (
+                SELECT
+                FROM aclexplode(COALESCE(hc.relacl, acldefault('r', hc.relowner))) AS _acl
+                WHERE _acl.privilege_type = 'SELECT'
+                  AND _acl.grantee = acl.grantee)
+
+            UNION ALL
+
+            SELECT fpv.table_name,
+                   hc.oid::regclass::text,
+                   acl.privilege_type,
+                   acl.privilege_type
+            FROM periods.for_portion_views AS fpv
+            JOIN pg_class AS c ON c.oid = fpv.table_name
+            CROSS JOIN LATERAL aclexplode(COALESCE(c.relacl, acldefault('r', c.relowner))) AS acl
+            JOIN pg_class AS hc ON hc.oid = fpv.view_name
+            WHERE NOT EXISTS (
+                SELECT
+                FROM aclexplode(COALESCE(hc.relacl, acldefault('r', hc.relowner))) AS _acl
+                WHERE _acl.privilege_type = acl.privilege_type
+                  AND _acl.grantee = acl.grantee)
+
+            UNION ALL
+
+            SELECT sv.table_name,
+                   hp.oid::regprocedure::text,
+                   'EXECUTE',
+                   'SELECT'
+            FROM periods.system_versioning AS sv
+            JOIN pg_class AS c ON c.oid = sv.table_name
+            CROSS JOIN LATERAL aclexplode(COALESCE(c.relacl, acldefault('r', c.relowner))) AS acl
+            JOIN pg_proc AS hp ON hp.oid IN (sv.func_as_of, sv.func_between, sv.func_between_symmetric, sv.func_from_to)
+            WHERE acl.privilege_type = 'SELECT'
+              AND NOT EXISTS (
+                SELECT
+                FROM aclexplode(COALESCE(hp.proacl, acldefault('f', hp.proowner))) AS _acl
+                WHERE _acl.privilege_type = 'EXECUTE'
+                  AND _acl.grantee = acl.grantee)
+
+            ORDER BY table_name, object_name
+        LOOP
+            RAISE EXCEPTION 'cannot revoke % directly from "%", revoke % from "%" instead',
+                r.privilege_type, r.object_name, r.base_privilege_type, r.table_name;
+        END LOOP;
+
+        /* Propagate REVOKEs */
+        FOR cmd IN
+            SELECT format('REVOKE %s ON %s %s FROM %s',
+                          string_agg(DISTINCT privilege_type, ', '),
+                          object_type,
+                          string_agg(DISTINCT object_name, ', '),
+                          string_agg(DISTINCT COALESCE(a.rolname, 'public'), ', '))
+            FROM (
+                SELECT 'TABLE' AS object_type,
+                       hc.oid::regclass::text AS object_name,
+                       'SELECT' AS privilege_type,
+                       hacl.grantee
+                FROM periods.system_versioning AS sv
+                JOIN pg_class AS hc ON hc.oid IN (sv.history_table_name, sv.view_name)
+                CROSS JOIN LATERAL aclexplode(COALESCE(hc.relacl, acldefault('r', hc.relowner))) AS hacl
+                WHERE hacl.privilege_type = 'SELECT'
+                  AND NOT has_table_privilege(hacl.grantee, sv.table_name, 'SELECT')
+
+                UNION ALL
+
+                SELECT 'TABLE' AS object_type,
+                       hc.oid::regclass::text AS object_name,
+                       hacl.privilege_type,
+                       hacl.grantee
+                FROM periods.for_portion_views AS fpv
+                JOIN pg_class AS hc ON hc.oid = fpv.view_name
+                CROSS JOIN LATERAL aclexplode(COALESCE(hc.relacl, acldefault('r', hc.relowner))) AS hacl
+                WHERE NOT has_table_privilege(hacl.grantee, fpv.table_name, hacl.privilege_type)
+
+                UNION ALL
+
+                SELECT 'FUNCTION' AS object_type,
+                       hp.oid::regprocedure::text AS object_name,
+                       'EXECUTE' AS privilege_type,
+                       hacl.grantee
+                FROM periods.system_versioning AS sv
+                JOIN pg_proc AS hp ON hp.oid IN (sv.func_as_of, sv.func_between, sv.func_between_symmetric, sv.func_from_to)
+                CROSS JOIN LATERAL aclexplode(COALESCE(hp.proacl, acldefault('f', hp.proowner))) AS hacl
+                WHERE hacl.privilege_type = 'EXECUTE'
+                  AND NOT has_table_privilege(hacl.grantee, sv.table_name, 'SELECT')
+            ) AS objects
+            LEFT JOIN pg_authid AS a ON a.oid = objects.grantee
+            GROUP BY object_type
+        LOOP
+            EXECUTE cmd;
+        END LOOP;
+    END IF;
 END;
 $function$;
 
@@ -3365,3 +3665,4 @@ AS
 $function$
     SELECT sv1 = ev2;
 $function$;
+

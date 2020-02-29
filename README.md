@@ -291,27 +291,6 @@ We use a separate history table for this. You can create the history
 table yourself and instruct the extension to use it if you want to do
 things like add partitioning.
 
-## Altering a table with system versioning
-
-The SQL Standard does not say much about what should happen to a table
-with system versioning when the table is altered. This extension
-prevents you from dropping objects while system versioning is active,
-and other changes will be prevented in the future. The suggested way to
-make changes is:
-
-``` sql
-BEGIN;
-SELECT periods.drop_system_versioning('t');
-ALTER TABLE t ...;
-ALTER TABLE t_history ...;
-SELECT periods.add_system_versioning('t');
-COMMIT;
-```
-
-It is up to you to make sure you alter the history table in a way that
-is compatible with the main table. Re-activating system versioning will
-verify this.
-
 ## Temporal querying
 
 The SQL standard extends the `FROM` and `JOIN` clauses to allow
@@ -335,13 +314,52 @@ SELECT * FROM t FOR system_time BETWEEN SYMMETRIC '...' AND '...';
 SELECT * FROM t__between_symmetric('...', '...');
 ```
 
+## Access control
+
+The history table as well as the helper functions all follow the
+ownership and access privileges of the base table. It is not possible to
+change the privileges independently. The history data is also read-only.
+In order to trim old data, `SYSTEM VERSIONING` must be suspended.
+
+``` sql
+BEGIN;
+SELECT periods.drop_system_versioning('t');
+GRANT DELETE ON TABLE t TO CURRENT_USER;
+DELETE FROM t_history WHERE system_time_end < now() - interval '1 year';
+SELECT periods.add_system_versioning('t');
+COMMIT;
+```
+
+The privileges are automatically fixed when system versioning is
+resumed.
+
+## Altering a table with system versioning
+
+The SQL Standard does not say much about what should happen to a table
+with system versioning when the table is altered. This extension
+prevents you from dropping objects while system versioning is active,
+and other changes will be prevented in the future. The suggested way to
+make changes is:
+
+``` sql
+BEGIN;
+SELECT periods.drop_system_versioning('t');
+ALTER TABLE t ...;
+ALTER TABLE t_history ...;
+SELECT periods.add_system_versioning('t');
+COMMIT;
+```
+
+It is up to you to make sure you alter the history table in a way that
+is compatible with the main table. Re-activating system versioning will
+verify this.
+
 # Future
 
 ## Completion
 
 This extension is pretty much feature complete, but there are still many
-aspects that need to be handled. For example, there is currently no
-management of access control.
+aspects that need to be handled.
 
 ## Performance
 
