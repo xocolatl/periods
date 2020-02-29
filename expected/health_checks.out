@@ -28,7 +28,7 @@ SELECT periods.add_system_time_period('log'); -- passes
 
 ALTER TABLE log SET UNLOGGED; -- fails
 ERROR:  table "log" must remain persistent because it has periods
-CONTEXT:  PL/pgSQL function periods.health_checks() line 13 at RAISE
+CONTEXT:  PL/pgSQL function periods.health_checks() line 14 at RAISE
 SELECT periods.add_system_versioning('log');
 NOTICE:  history table "log_history" created for "log", be sure to index it properly
  add_system_versioning 
@@ -38,7 +38,7 @@ NOTICE:  history table "log_history" created for "log", be sure to index it prop
 
 ALTER TABLE log_history SET UNLOGGED; -- fails
 ERROR:  history table "log" must remain persistent because it has periods
-CONTEXT:  PL/pgSQL function periods.health_checks() line 24 at RAISE
+CONTEXT:  PL/pgSQL function periods.health_checks() line 25 at RAISE
 SELECT periods.drop_system_versioning('log', purge => true);
  drop_system_versioning 
 ------------------------

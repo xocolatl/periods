@@ -2366,6 +2366,7 @@ $function$
 DECLARE
     schema_name name;
     table_name name;
+    table_owner regrole;
     persistence "char";
     kind "char";
     period_row periods.periods;
@@ -2393,8 +2394,8 @@ BEGIN
 
     /* Must be a regular persistent base table. SQL:2016 11.29 SR 2 */
 
-    SELECT n.nspname, c.relname, c.relpersistence, c.relkind
-    INTO schema_name, table_name, persistence, kind
+    SELECT n.nspname, c.relname, c.relowner, c.relpersistence, c.relkind
+    INTO schema_name, table_name, table_owner, persistence, kind
     FROM pg_catalog.pg_class AS c
     JOIN pg_catalog.pg_namespace AS n ON n.oid = c.relnamespace
     WHERE c.oid = table_class;
@@ -2486,9 +2487,15 @@ BEGIN
             RAISE EXCEPTION 'base table "%" and history table "%" are not compatible',
                 table_class, history_table_id::regclass;
         END IF;
+
+        /* Make sure the owner is correct */
+        EXECUTE format('ALTER TABLE %s OWNER TO %I', history_table_id::regclass, table_owner);
     ELSE
         EXECUTE format('CREATE TABLE %1$I.%2$I (LIKE %1$I.%3$I)', schema_name, history_table_name, table_name);
         history_table_id := format('%I.%I', schema_name, history_table_name)::regclass;
+
+        EXECUTE format('ALTER TABLE %1$I.%2$I OWNER TO %3$I', schema_name, history_table_name, table_owner);
+
         RAISE NOTICE 'history table "%" created for "%", be sure to index it properly',
             history_table_id::regclass, table_class;
     END IF;
@@ -2514,6 +2521,7 @@ BEGIN
            AND a.attnum > 0
            AND NOT a.attisdropped
         ));
+    EXECUTE format('ALTER VIEW %1$I.%2$I OWNER TO %3$I', schema_name, view_name, table_owner);
 
     /*
      * Create functions to simulate the system versioned grammar.  These must
@@ -2527,6 +2535,8 @@ BEGIN
          STABLE
         AS 'SELECT * FROM %1$I.%3$I WHERE %4$I <= $1 AND %5$I > $1'
         $$, schema_name, function_as_of_name, view_name, period_row.start_column_name, period_row.end_column_name);
+    EXECUTE format('ALTER FUNCTION %1$I.%2$I(timestamp with time zone) OWNER TO %3$I',
+        schema_name, function_as_of_name, table_owner);
 
     EXECUTE format(
         $$
@@ -2536,6 +2546,8 @@ BEGIN
          STABLE
         AS 'SELECT * FROM %1$I.%3$I WHERE $1 <= $2 AND %5$I > $1 AND %4$I <= $2'
         $$, schema_name, function_between_name, view_name, period_row.start_column_name, period_row.end_column_name);
+    EXECUTE format('ALTER FUNCTION %1$I.%2$I(timestamp with time zone, timestamp with time zone) OWNER TO %3$I',
+        schema_name, function_between_name, table_owner);
 
     EXECUTE format(
         $$
@@ -2545,6 +2557,8 @@ BEGIN
          STABLE
         AS 'SELECT * FROM %1$I.%3$I WHERE %5$I > least($1, $2) AND %4$I <= greatest($1, $2)'
         $$, schema_name, function_between_symmetric_name, view_name, period_row.start_column_name, period_row.end_column_name);
+    EXECUTE format('ALTER FUNCTION %1$I.%2$I(timestamp with time zone, timestamp with time zone) OWNER TO %3$I',
+        schema_name, function_between_symmetric_name, table_owner);
 
     EXECUTE format(
         $$
@@ -2554,6 +2568,8 @@ BEGIN
          STABLE
         AS 'SELECT * FROM %1$I.%3$I WHERE $1 < $2 AND %5$I > $1 AND %4$I < $2'
         $$, schema_name, function_from_to_name, view_name, period_row.start_column_name, period_row.end_column_name);
+    EXECUTE format('ALTER FUNCTION %1$I.%2$I(timestamp with time zone, timestamp with time zone) OWNER TO %3$I',
+        schema_name, function_from_to_name, table_owner);
 
     /* Register it */
     INSERT INTO periods.system_versioning (table_name, period_name, history_table_name, view_name,
@@ -3215,6 +3231,7 @@ AS
 $function$
 #variable_conflict use_variable
 DECLARE
+    cmd text;
     r record;
 BEGIN
     /* Make sure that all of our tables are still persistent */
@@ -3237,6 +3254,38 @@ BEGIN
     LOOP
         RAISE EXCEPTION 'history table "%" must remain persistent because it has periods',
             r.table_name;
+    END LOOP;
+
+    /* Fix up history and for-portion objects ownership */
+    FOR cmd IN
+        SELECT format('ALTER %s %s OWNER TO %I',
+            CASE ht.relkind
+                WHEN 'r' THEN 'TABLE'
+                WHEN 'v' THEN 'VIEW'
+            END,
+            ht.oid::regclass, t.relowner::regrole)
+        FROM periods.system_versioning AS sv
+        JOIN pg_class AS t ON t.oid = sv.table_name
+        JOIN pg_class AS ht ON ht.oid IN (sv.history_table_name, sv.view_name)
+        WHERE t.relowner <> ht.relowner
+
+        UNION ALL
+
+        SELECT format('ALTER VIEW %s OWNER TO %I', fpt.oid::regclass, t.relowner::regrole)
+        FROM periods.for_portion_views AS fpv
+        JOIN pg_class AS t ON t.oid = fpv.table_name
+        JOIN pg_class AS fpt ON fpt.oid = fpv.view_name
+        WHERE t.relowner <> fpt.relowner
+
+        UNION ALL
+
+        SELECT format('ALTER FUNCTION %s OWNER TO %I', p.oid::regprocedure, t.relowner::regrole)
+        FROM periods.system_versioning AS sv
+        JOIN pg_class AS t ON t.oid = sv.table_name
+        JOIN pg_proc AS p ON p.oid IN (sv.func_as_of, sv.func_between, sv.func_between_symmetric, sv.func_from_to)
+        WHERE t.relowner <> p.proowner
+    LOOP
+        EXECUTE cmd;
     END LOOP;
 END;
 $function$;

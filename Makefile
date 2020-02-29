@@ -19,6 +19,7 @@ REGRESS = install \
 		  drop_protection \
 		  rename_following \
 		  health_checks \
+		  acl \
 		  issues \
 		  beeswax \
 		  uninstall

@@ -1,0 +1,150 @@
+/* Tests for access control on the history tables */
+CREATE ROLE periods_acl_1;
+CREATE ROLE periods_acl_2;
+CREATE ROLE periods_acl_3;
+/* OWNER */
+-- We call this query several times, so make it a view for eaiser maintenance
+CREATE VIEW show_owners AS
+    SELECT c.relnamespace::regnamespace AS schema_name,
+           c.relname AS object_name,
+           CASE c.relkind
+               WHEN 'r' THEN 'table'
+               WHEN 'v' THEN 'view'
+           END AS object_type,
+           c.relowner::regrole AS owner
+    FROM pg_class AS c
+    WHERE c.relnamespace = 'public'::regnamespace
+      AND c.relname = ANY (ARRAY['owner_test', 'owner_test_history', 'owner_test_with_history', 'owner_test__for_portion_of_p'])
+    UNION ALL
+    SELECT p.pronamespace, p.proname, 'function', p.proowner
+    FROM pg_proc AS p
+    WHERE p.pronamespace = 'public'::regnamespace
+      AND p.proname = ANY (ARRAY['owner_test__as_of', 'owner_test__between', 'owner_test__between_symmetric', 'owner_test__from_to']);
+CREATE TABLE owner_test (col text PRIMARY KEY, s integer, e integer);
+ALTER TABLE owner_test OWNER TO periods_acl_1;
+SELECT periods.add_period('owner_test', 'p', 's', 'e');
+ add_period 
+------------
+ t
+(1 row)
+
+SELECT periods.add_for_portion_view('owner_test', 'p');
+ add_for_portion_view 
+----------------------
+ t
+(1 row)
+
+SELECT periods.add_system_time_period('owner_test');
+ add_system_time_period 
+------------------------
+ t
+(1 row)
+
+SELECT periods.add_system_versioning('owner_test');
+NOTICE:  history table "owner_test_history" created for "owner_test", be sure to index it properly
+ add_system_versioning 
+-----------------------
+ 
+(1 row)
+
+TABLE show_owners ORDER BY object_name;
+ schema_name |          object_name          | object_type |     owner     
+-------------+-------------------------------+-------------+---------------
+ public      | owner_test                    | table       | periods_acl_1
+ public      | owner_test__as_of             | function    | periods_acl_1
+ public      | owner_test__between           | function    | periods_acl_1
+ public      | owner_test__between_symmetric | function    | periods_acl_1
+ public      | owner_test__for_portion_of_p  | view        | periods_acl_1
+ public      | owner_test__from_to           | function    | periods_acl_1
+ public      | owner_test_history            | table       | periods_acl_1
+ public      | owner_test_with_history       | view        | periods_acl_1
+(8 rows)
+
+-- This should change everything
+ALTER TABLE owner_test OWNER TO periods_acl_2;
+TABLE show_owners ORDER BY object_name;
+ schema_name |          object_name          | object_type |     owner     
+-------------+-------------------------------+-------------+---------------
+ public      | owner_test                    | table       | periods_acl_2
+ public      | owner_test__as_of             | function    | periods_acl_2
+ public      | owner_test__between           | function    | periods_acl_2
+ public      | owner_test__between_symmetric | function    | periods_acl_2
+ public      | owner_test__for_portion_of_p  | view        | periods_acl_2
+ public      | owner_test__from_to           | function    | periods_acl_2
+ public      | owner_test_history            | table       | periods_acl_2
+ public      | owner_test_with_history       | view        | periods_acl_2
+(8 rows)
+
+-- These should change nothing
+ALTER TABLE owner_test_history OWNER TO periods_acl_3;
+ALTER VIEW owner_test_with_history OWNER TO periods_acl_3;
+ALTER FUNCTION owner_test__as_of(timestamp with time zone) OWNER TO periods_acl_3;
+ALTER FUNCTION owner_test__between(timestamp with time zone, timestamp with time zone) OWNER TO periods_acl_3;
+ALTER FUNCTION owner_test__between_symmetric(timestamp with time zone, timestamp with time zone) OWNER TO periods_acl_3;
+ALTER FUNCTION owner_test__from_to(timestamp with time zone, timestamp with time zone) OWNER TO periods_acl_3;
+TABLE show_owners ORDER BY object_name;
+ schema_name |          object_name          | object_type |     owner     
+-------------+-------------------------------+-------------+---------------
+ public      | owner_test                    | table       | periods_acl_2
+ public      | owner_test__as_of             | function    | periods_acl_2
+ public      | owner_test__between           | function    | periods_acl_2
+ public      | owner_test__between_symmetric | function    | periods_acl_2
+ public      | owner_test__for_portion_of_p  | view        | periods_acl_2
+ public      | owner_test__from_to           | function    | periods_acl_2
+ public      | owner_test_history            | table       | periods_acl_2
+ public      | owner_test_with_history       | view        | periods_acl_2
+(8 rows)
+
+-- This should put the owner back to the base table's owner
+SELECT periods.drop_system_versioning('owner_test');
+ drop_system_versioning 
+------------------------
+ t
+(1 row)
+
+ALTER TABLE owner_test_history OWNER TO periods_acl_3;
+TABLE show_owners ORDER BY object_name;
+ schema_name |         object_name          | object_type |     owner     
+-------------+------------------------------+-------------+---------------
+ public      | owner_test                   | table       | periods_acl_2
+ public      | owner_test__for_portion_of_p | view        | periods_acl_2
+ public      | owner_test_history           | table       | periods_acl_3
+(3 rows)
+
+SELECT periods.add_system_versioning('owner_test');
+ add_system_versioning 
+-----------------------
+ 
+(1 row)
+
+TABLE show_owners ORDER BY object_name;
+ schema_name |          object_name          | object_type |     owner     
+-------------+-------------------------------+-------------+---------------
+ public      | owner_test                    | table       | periods_acl_2
+ public      | owner_test__as_of             | function    | periods_acl_2
+ public      | owner_test__between           | function    | periods_acl_2
+ public      | owner_test__between_symmetric | function    | periods_acl_2
+ public      | owner_test__for_portion_of_p  | view        | periods_acl_2
+ public      | owner_test__from_to           | function    | periods_acl_2
+ public      | owner_test_history            | table       | periods_acl_2
+ public      | owner_test_with_history       | view        | periods_acl_2
+(8 rows)
+
+SELECT periods.drop_system_versioning('owner_test', drop_behavior => 'CASCADE', purge => true);
+ drop_system_versioning 
+------------------------
+ t
+(1 row)
+
+SELECT periods.drop_for_portion_view('owner_test', NULL);
+ drop_for_portion_view 
+-----------------------
+ t
+(1 row)
+
+DROP TABLE owner_test CASCADE;
+DROP VIEW show_owners;
+/* Clean up */
+DROP ROLE periods_acl_1;
+DROP ROLE periods_acl_2;
+DROP ROLE periods_acl_3;
