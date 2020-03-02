@@ -303,7 +303,7 @@ BEGIN
     IF kind <> 'r' THEN
         /*
          * The main reason partitioned tables aren't supported yet is simply
-         * beceuase I haven't put any thought into it.
+         * because I haven't put any thought into it.
          * Maybe it's trivial, maybe not.
          */
         IF kind = 'p' THEN
@@ -2441,7 +2441,7 @@ BEGIN
     WHERE (n.nspname, c.relname) = (schema_name, history_table_name);
 
     IF FOUND THEN
-        /* Don't allow any periods on the system table (this will be relaxed later) */
+        /* Don't allow any periods on the history table (this might be relaxed later) */
         IF EXISTS (SELECT FROM periods.periods AS p WHERE p.table_name = history_table_id) THEN
             RAISE EXCEPTION 'history tables for SYSTEM VERSIONING cannot have periods';
         END IF;
