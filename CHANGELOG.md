@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+  - Use SPI to insert into the history table.  They previous way of doing it didn't
+    update the indexes, leading to wrong results depending on the execution plan.
+
+    Users must REINDEX all indexes on history tables.
+
 ## [1.1] – 2020-02-05
 
 ### Added

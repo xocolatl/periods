@@ -15,7 +15,10 @@
 #include "commands/trigger.h"
 #include "datatype/timestamp.h"
 #include "executor/spi.h"
+#include "funcapi.h"
+#include "lib/stringinfo.h"
 #include "nodes/bitmapset.h"
+#include "utils/builtins.h"
 #include "utils/date.h"
 #include "utils/datum.h"
 #include "utils/elog.h"
@@ -23,6 +26,7 @@
 #else
 #include "utils/fmgrprotos.h"
 #endif
+#include "utils/hsearch.h"
 #include "utils/lsyscache.h"
 #include "utils/memutils.h"
 #include "utils/rel.h"
@@ -56,6 +60,28 @@ PG_FUNCTION_INFO_V1(write_history);
 #define INFINITE_TSTZ		TimestampTzGetDatum(DT_NOEND)
 #define INFINITE_TS			TimestampGetDatum(DT_NOEND)
 #define INFINITE_DATE		DateADTGetDatum(DATEVAL_NOEND)
+
+/* Plan caches for inserting into history tables */
+static HTAB *InsertHistoryPlanHash = NULL;
+
+typedef struct InsertHistoryPlanEntry
+{
+	Oid			history_relid;	/* the hash key; must be first */
+	char		schemaname[NAMEDATALEN];
+	char		tablename[NAMEDATALEN];
+	SPIPlanPtr	qplan;
+} InsertHistoryPlanEntry;
+
+static HTAB *
+CreateInsertHistoryPlanHash(void)
+{
+	HASHCTL	ctl;
+
+	ctl.keysize = sizeof(Oid);
+	ctl.entrysize = sizeof(InsertHistoryPlanEntry);
+
+	return hash_create("Insert History Hash", 16, &ctl, HASH_ELEM | HASH_BLOBS);
+}
 
 static void
 GetPeriodColumnNames(Relation rel, char *period_name, char **start_name, char **end_name)
@@ -492,6 +518,64 @@ generated_always_as_row_start_end(PG_FUNCTION_ARGS)
 	return PointerGetDatum(new_row);
 }
 
+static void
+insert_into_history(Relation history_rel, HeapTuple history_tuple)
+{
+	InsertHistoryPlanEntry   *hentry;
+	bool		found;
+	char	   *schemaname = SPI_getnspname(history_rel);
+	char	   *tablename = SPI_getrelname(history_rel);
+	Oid			history_relid = history_rel->rd_id;
+	Datum		value;
+	int			ret;
+
+	if (SPI_connect() != SPI_OK_CONNECT)
+		elog(ERROR, "SPI_connect failed");
+
+	if (!InsertHistoryPlanHash)
+		InsertHistoryPlanHash = CreateInsertHistoryPlanHash();
+
+	/* Fetch the cached plan */
+	hentry = (InsertHistoryPlanEntry *) hash_search(
+			InsertHistoryPlanHash,
+			&history_relid,
+			HASH_ENTER,
+			&found);
+
+	/* If we didn't find it or the name changed, re-plan it */
+	if (!found ||
+		!strcmp(hentry->schemaname, schemaname) ||
+		!strcmp(hentry->tablename, tablename))
+	{
+		StringInfo	buf = makeStringInfo();
+		Oid			type = HeapTupleHeaderGetTypeId(history_tuple->t_data);
+
+		appendStringInfo(buf, "INSERT INTO %s VALUES (($1).*)",
+				quote_qualified_identifier(schemaname, tablename));
+
+		hentry->history_relid = history_relid;
+		strlcpy(hentry->schemaname, schemaname, sizeof(hentry->schemaname));
+		strlcpy(hentry->tablename, tablename, sizeof(hentry->tablename));
+		hentry->qplan = SPI_prepare(buf->data, 1, &type);
+		if (hentry->qplan == NULL)
+			elog(ERROR, "SPI_prepare returned %s for %s",
+				 SPI_result_code_string(SPI_result), buf->data);
+
+		ret = SPI_keepplan(hentry->qplan);
+		if (ret != 0)
+			elog(ERROR, "SPI_keepplan returned %s", SPI_result_code_string(ret));
+	}
+
+	/* Do the INSERT */
+	value = HeapTupleGetDatum(history_tuple);
+	ret = SPI_execute_plan(hentry->qplan, &value, NULL, false, 0);
+	if (ret != SPI_OK_INSERT)
+		elog(ERROR, "SPI_execute returned %s", SPI_result_code_string(ret));
+
+	if (SPI_finish() != SPI_OK_FINISH)
+		elog(ERROR, "SPI_finish failed");
+}
+
 Datum
 write_history(PG_FUNCTION_ARGS)
 {
@@ -692,7 +776,7 @@ write_history(PG_FUNCTION_ARGS)
 		pfree(nulls);
 
 		/* INSERT the row */
-		simple_heap_insert(history_rel, history_tuple);
+		insert_into_history(history_rel, history_tuple);
 
 		/* Keep the lock until end of transaction */
 		table_close(history_rel, NoLock);
