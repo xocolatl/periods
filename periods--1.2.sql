@@ -243,6 +243,7 @@ CREATE FUNCTION periods.add_period(
     bounds_check_constraint name DEFAULT NULL)
  RETURNS boolean
  LANGUAGE plpgsql
+ SECURITY DEFINER
 AS
 $function$
 #variable_conflict use_variable
@@ -489,6 +490,7 @@ $function$;
 CREATE FUNCTION periods.drop_period(table_name regclass, period_name name, drop_behavior periods.drop_behavior DEFAULT 'RESTRICT', purge boolean DEFAULT false)
  RETURNS boolean
  LANGUAGE plpgsql
+ SECURITY DEFINER
 AS
 $function$
 #variable_conflict use_variable
@@ -631,6 +633,7 @@ CREATE FUNCTION periods.add_system_time_period(
     excluded_column_names name[] DEFAULT '{}')
  RETURNS boolean
  LANGUAGE plpgsql
+ SECURITY DEFINER
 AS
 $function$
 #variable_conflict use_variable
@@ -986,6 +989,7 @@ CREATE FUNCTION periods.set_system_time_period_excluded_columns(
     excluded_column_names name[])
  RETURNS void
  LANGUAGE plpgsql
+ SECURITY DEFINER
 AS
 $function$
 #variable_conflict use_variable
@@ -1035,18 +1039,21 @@ CREATE FUNCTION periods.generated_always_as_row_start_end()
  RETURNS trigger
  LANGUAGE c
  STRICT
+ SECURITY DEFINER
 AS 'MODULE_PATHNAME';
 
 CREATE FUNCTION periods.write_history()
  RETURNS trigger
  LANGUAGE c
  STRICT
+ SECURITY DEFINER
 AS 'MODULE_PATHNAME';
 
 CREATE FUNCTION periods.truncate_system_versioning()
  RETURNS trigger
  LANGUAGE plpgsql
  STRICT
+ SECURITY DEFINER
 AS
 $function$
 #variable_conflict use_variable
@@ -1069,6 +1076,7 @@ $function$;
 CREATE FUNCTION periods.add_for_portion_view(table_name regclass DEFAULT NULL, period_name name DEFAULT NULL)
  RETURNS boolean
  LANGUAGE plpgsql
+ SECURITY DEFINER
 AS
 $function$
 #variable_conflict use_variable
@@ -1141,6 +1149,7 @@ $function$;
 CREATE FUNCTION periods.drop_for_portion_view(table_name regclass, period_name name, drop_behavior periods.drop_behavior DEFAULT 'RESTRICT', purge boolean DEFAULT false)
  RETURNS boolean
  LANGUAGE plpgsql
+ SECURITY DEFINER
 AS
 $function$
 #variable_conflict use_variable
@@ -1412,6 +1421,7 @@ CREATE FUNCTION periods.add_unique_key(
         exclude_constraint name DEFAULT NULL)
  RETURNS name
  LANGUAGE plpgsql
+ SECURITY DEFINER
 AS
 $function$
 #variable_conflict use_variable
@@ -1641,6 +1651,7 @@ $function$;
 CREATE FUNCTION periods.drop_unique_key(table_name regclass, key_name name, drop_behavior periods.drop_behavior DEFAULT 'RESTRICT', purge boolean DEFAULT false)
  RETURNS void
  LANGUAGE plpgsql
+ SECURITY DEFINER
 AS
 $function$
 #variable_conflict use_variable
@@ -1767,6 +1778,7 @@ CREATE FUNCTION periods.add_foreign_key(
         uk_delete_trigger name DEFAULT NULL)
  RETURNS name
  LANGUAGE plpgsql
+ SECURITY DEFINER
 AS
 $function$
 #variable_conflict use_variable
@@ -1951,6 +1963,7 @@ $function$;
 CREATE FUNCTION periods.drop_foreign_key(table_name regclass, key_name name)
  RETURNS boolean
  LANGUAGE plpgsql
+ SECURITY DEFINER
 AS
 $function$
 #variable_conflict use_variable
@@ -2346,6 +2359,7 @@ CREATE FUNCTION periods.add_system_versioning(
     function_from_to_name name DEFAULT NULL)
  RETURNS void
  LANGUAGE plpgsql
+ SECURITY DEFINER
 AS
 $function$
 #variable_conflict use_variable
@@ -2560,6 +2574,7 @@ $function$;
 CREATE FUNCTION periods.drop_system_versioning(table_name regclass, drop_behavior periods.drop_behavior DEFAULT 'RESTRICT', purge boolean DEFAULT false)
  RETURNS boolean
  LANGUAGE plpgsql
+ SECURITY DEFINER
 AS $function$
 #variable_conflict use_variable
 DECLARE
@@ -2932,6 +2947,7 @@ CREATE EVENT TRIGGER periods_drop_protection ON sql_drop EXECUTE PROCEDURE perio
 CREATE FUNCTION periods.rename_following()
  RETURNS event_trigger
  LANGUAGE plpgsql
+ SECURITY DEFINER
 AS
 $function$
 #variable_conflict use_variable
@@ -3194,6 +3210,7 @@ CREATE EVENT TRIGGER periods_rename_following ON ddl_command_end EXECUTE PROCEDU
 CREATE FUNCTION periods.health_checks()
  RETURNS event_trigger
  LANGUAGE plpgsql
+ SECURITY DEFINER
 AS
 $function$
 #variable_conflict use_variable
