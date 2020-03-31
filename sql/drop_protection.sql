@@ -1,6 +1,9 @@
 SELECT setting::integer < 90600 AS pre_96
 FROM pg_settings WHERE name = 'server_version_num';
 
+/* Run tests as unprivileged user */
+SET ROLE TO periods_unprivileged_user;
+
 /* Make sure nobody drops the objects we keep track of in our catalogs. */
 
 CREATE TYPE integerrange AS RANGE (SUBTYPE = integer);

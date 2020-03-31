@@ -5,6 +5,8 @@ FROM pg_settings WHERE name = 'server_version_num';
  f
 (1 row)
 
+/* Run tests as unprivileged user */
+SET ROLE TO periods_unprivileged_user;
 /* https://github.com/xocolatl/periods/issues/5 */
 CREATE TABLE issue5 (
     id integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,

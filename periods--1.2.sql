@@ -32,6 +32,7 @@ CREATE TABLE periods.periods (
 
     CHECK (start_column_name <> end_column_name)
 );
+GRANT SELECT ON TABLE periods.periods TO PUBLIC;
 SELECT pg_catalog.pg_extension_config_dump('periods.periods', '');
 
 CREATE TABLE periods.system_time_periods (
@@ -48,6 +49,7 @@ CREATE TABLE periods.system_time_periods (
 
     CHECK (period_name = 'system_time')
 );
+GRANT SELECT ON TABLE periods.system_time_periods TO PUBLIC;
 SELECT pg_catalog.pg_extension_config_dump('periods.system_time_periods', '');
 
 COMMENT ON TABLE periods.periods IS 'The main catalog for periods.  All "DDL" operations for periods must first take an exclusive lock on this table.';
@@ -75,6 +77,7 @@ CREATE TABLE periods.for_portion_views (
 
     UNIQUE (view_name)
 );
+GRANT SELECT ON TABLE periods.for_portion_views TO PUBLIC;
 SELECT pg_catalog.pg_extension_config_dump('periods.for_portion_views', '');
 
 CREATE TABLE periods.unique_keys (
@@ -89,6 +92,7 @@ CREATE TABLE periods.unique_keys (
 
     FOREIGN KEY (table_name, period_name) REFERENCES periods.periods
 );
+GRANT SELECT ON TABLE periods.unique_keys TO PUBLIC;
 SELECT pg_catalog.pg_extension_config_dump('periods.unique_keys', '');
 
 COMMENT ON TABLE periods.unique_keys IS 'A registry of UNIQUE/PRIMARY keys using periods WITHOUT OVERLAPS';
@@ -115,6 +119,7 @@ CREATE TABLE periods.foreign_keys (
     CHECK (delete_action NOT IN ('CASCADE', 'SET NULL', 'SET DEFAULT')),
     CHECK (update_action NOT IN ('CASCADE', 'SET NULL', 'SET DEFAULT'))
 );
+GRANT SELECT ON TABLE periods.foreign_keys TO PUBLIC;
 SELECT pg_catalog.pg_extension_config_dump('periods.foreign_keys', '');
 
 COMMENT ON TABLE periods.foreign_keys IS 'A registry of foreign keys using periods WITHOUT OVERLAPS';
@@ -144,6 +149,7 @@ CREATE TABLE periods.system_versioning (
     UNIQUE (func_between_symmetric),
     UNIQUE (func_from_to)
 );
+GRANT SELECT ON TABLE periods.system_versioning TO PUBLIC;
 SELECT pg_catalog.pg_extension_config_dump('periods.system_versioning', '');
 
 COMMENT ON TABLE periods.system_versioning IS 'A registry of tables with SYSTEM VERSIONING';

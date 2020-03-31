@@ -5,6 +5,8 @@ FROM pg_settings WHERE name = 'server_version_num';
  t
 (1 row)
 
+/* Run tests as unprivileged user */
+SET ROLE TO periods_unprivileged_user;
 /* Make sure nobody drops the objects we keep track of in our catalogs. */
 CREATE TYPE integerrange AS RANGE (SUBTYPE = integer);
 CREATE TABLE dp (

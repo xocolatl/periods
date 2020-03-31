@@ -5,6 +5,8 @@ FROM pg_settings WHERE name = 'server_version_num';
  t
 (1 row)
 
+/* Run tests as unprivileged user */
+SET ROLE TO periods_unprivileged_user;
 /*
  * If anything we store as "name" is renamed, we need to update our catalogs or
  * throw an error.

@@ -9,6 +9,9 @@
 SELECT setting::integer < 120000 AS pre_12
 FROM pg_settings WHERE name = 'server_version_num';
 
+/* Run tests as unprivileged user */
+SET ROLE TO periods_unprivileged_user;
+
 /* Basic SYSTEM VERSIONING */
 
 CREATE TABLE sysver (val text, flap boolean);

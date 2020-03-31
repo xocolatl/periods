@@ -2,6 +2,9 @@ SELECT setting::integer < 100000 AS pre_10,
        setting::integer < 120000 AS pre_12
 FROM pg_settings WHERE name = 'server_version_num';
 
+/* Run tests as unprivileged user */
+SET ROLE TO periods_unprivileged_user;
+
 /*
  * Create a sequence to test non-serial primary keys.  This actually tests
  * things like uuid primary keys, but makes for reproducible test cases.

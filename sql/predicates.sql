@@ -1,3 +1,6 @@
+/* Run tests as unprivileged user */
+SET ROLE TO periods_unprivileged_user;
+
 CREATE TABLE preds (s integer, e integer);
 SELECT periods.add_period('preds', 'p', 's', 'e');
 
