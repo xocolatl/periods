@@ -285,7 +285,7 @@ BEGIN
          */
         'CREATE VIEW %1$I.%2$I AS SELECT %5$s FROM %1$I.%3$I UNION ALL SELECT %5$s FROM %1$I.%4$I',
         schema_name, view_name, table_name, history_table_name,
-        (SELECT string_agg(a.attname, ', ' ORDER BY a.attnum)
+        (SELECT string_agg(quote_ident(a.attname), ', ' ORDER BY a.attnum)
          FROM pg_attribute AS a
          WHERE a.attrelid = table_class
            AND a.attnum > 0
