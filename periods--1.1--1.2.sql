@@ -21,7 +21,9 @@ ALTER FUNCTION periods.add_unique_key(regclass,name[],name,name,name,name) SECUR
 ALTER FUNCTION periods.drop_for_portion_view(regclass,name,periods.drop_behavior,boolean) SECURITY DEFINER;
 ALTER FUNCTION periods.drop_foreign_key(regclass,name) SECURITY DEFINER;
 ALTER FUNCTION periods.drop_period(regclass,name,periods.drop_behavior,boolean) SECURITY DEFINER;
+ALTER FUNCTION periods.drop_protection() SECURITY DEFINER;
 ALTER FUNCTION periods.drop_system_versioning(regclass,periods.drop_behavior,boolean) SECURITY DEFINER;
+ALTER FUNCTION periods.drop_system_time_period(table_name regclass,drop_behavior periods.drop_behavior,purge boolean) SECURITY DEFINER;
 ALTER FUNCTION periods.drop_unique_key(regclass,name,periods.drop_behavior,boolean) SECURITY DEFINER;
 ALTER FUNCTION periods.generated_always_as_row_start_end() SECURITY DEFINER;
 ALTER FUNCTION periods.health_checks() SECURITY DEFINER;

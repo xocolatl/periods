@@ -1031,6 +1031,7 @@ $function$;
 CREATE FUNCTION periods.drop_system_time_period(table_name regclass, drop_behavior periods.drop_behavior DEFAULT 'RESTRICT', purge boolean DEFAULT false)
  RETURNS boolean
  LANGUAGE sql
+ SECURITY DEFINER
 AS
 $function$
 SELECT periods.drop_period(table_name, 'system_time', drop_behavior, purge);
@@ -2736,6 +2737,7 @@ $function$;
 CREATE FUNCTION periods.drop_protection()
  RETURNS event_trigger
  LANGUAGE plpgsql
+ SECURITY DEFINER
 AS
 $function$
 #variable_conflict use_variable
