@@ -1126,7 +1126,7 @@ BEGIN
     END IF;
 
     FOR r IN
-        SELECT n.nspname AS schema_name, c.relname AS table_name, p.period_name
+        SELECT n.nspname AS schema_name, c.relname AS table_name, c.relowner AS table_owner, p.period_name
         FROM periods.periods AS p
         JOIN pg_catalog.pg_class AS c ON c.oid = p.table_name
         JOIN pg_catalog.pg_namespace AS n ON n.oid = c.relnamespace
@@ -1140,6 +1140,7 @@ BEGIN
         view_name := periods._choose_portion_view_name(r.table_name, r.period_name);
         trigger_name := 'for_portion_of_' || r.period_name;
         EXECUTE format('CREATE VIEW %1$I.%2$I AS TABLE %1$I.%3$I', r.schema_name, view_name, r.table_name);
+        EXECUTE format('ALTER VIEW %1$I.%2$I OWNER TO %s', r.schema_name, view_name, r.table_owner::regrole);
         EXECUTE format('CREATE TRIGGER %I INSTEAD OF UPDATE ON %I.%I FOR EACH ROW EXECUTE PROCEDURE periods.update_portion_of()',
             trigger_name, r.schema_name, view_name);
         INSERT INTO periods.for_portion_views (table_name, period_name, view_name, trigger_name)
@@ -2409,7 +2410,7 @@ BEGIN
     IF kind <> 'r' THEN
         /*
          * The main reason partitioned tables aren't supported yet is simply
-         * beceause I haven't put any thought into it.
+         * because I haven't put any thought into it.
          * Maybe it's trivial, maybe not.
          */
         IF kind = 'p' THEN
@@ -2654,10 +2655,10 @@ BEGIN
         'system_time',
         format('%I.%I', schema_name, history_table_name),
         format('%I.%I', schema_name, view_name),
-        format('%I.%I(timestamp with time zone)', schema_name, function_as_of_name)::regprocedure,
-        format('%I.%I(timestamp with time zone,timestamp with time zone)', schema_name, function_between_name)::regprocedure,
-        format('%I.%I(timestamp with time zone,timestamp with time zone)', schema_name, function_between_symmetric_name)::regprocedure,
-        format('%I.%I(timestamp with time zone,timestamp with time zone)', schema_name, function_from_to_name)::regprocedure
+        format('%I.%I(timestamp with time zone)', schema_name, function_as_of_name),
+        format('%I.%I(timestamp with time zone,timestamp with time zone)', schema_name, function_between_name),
+        format('%I.%I(timestamp with time zone,timestamp with time zone)', schema_name, function_between_symmetric_name),
+        format('%I.%I(timestamp with time zone,timestamp with time zone)', schema_name, function_from_to_name)
     );
 END;
 $function$;
