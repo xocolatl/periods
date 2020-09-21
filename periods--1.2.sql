@@ -124,10 +124,12 @@ CREATE TABLE periods.system_versioning (
     period_name name NOT NULL,
     history_table_name regclass NOT NULL,
     view_name regclass NOT NULL,
-    func_as_of regprocedure NOT NULL,
-    func_between regprocedure NOT NULL,
-    func_between_symmetric regprocedure NOT NULL,
-    func_from_to regprocedure NOT NULL,
+
+    -- These functions should be of type regprocedure, but that blocks pg_upgrade.
+    func_as_of text NOT NULL,
+    func_between text NOT NULL,
+    func_between_symmetric text NOT NULL,
+    func_from_to text NOT NULL,
 
     PRIMARY KEY (table_name),
 
@@ -2518,7 +2520,7 @@ BEGIN
     /* Create the "with history" view.  This one we do want to error out on if it exists. */
     EXECUTE format(
         /*
-         * The query we really here want is
+         * The query we really want here is
          *
          *     CREATE VIEW view_name AS
          *         TABLE table_name
@@ -3022,7 +3024,7 @@ BEGIN
         SELECT dobj.object_identity, sv.table_name
         FROM periods.system_versioning AS sv
         JOIN pg_catalog.pg_event_trigger_dropped_objects() WITH ORDINALITY AS dobj
-                ON dobj.objid IN (sv.func_as_of, sv.func_between, sv.func_between_symmetric, sv.func_from_to)
+                ON dobj.object_identity = ANY (ARRAY[sv.func_as_of, sv.func_between, sv.func_between_symmetric, sv.func_from_to])
         WHERE dobj.object_type = 'function'
         ORDER BY dobj.ordinality
     LOOP
@@ -3297,7 +3299,7 @@ $function$;
 
 CREATE EVENT TRIGGER periods_rename_following ON ddl_command_end EXECUTE PROCEDURE periods.rename_following();
 
-CREATE FUNCTION periods.health_checks()
+CREATE OR REPLACE FUNCTION periods.health_checks()
  RETURNS event_trigger
  LANGUAGE plpgsql
  SECURITY DEFINER
@@ -3307,6 +3309,7 @@ $function$
 DECLARE
     cmd text;
     r record;
+    save_search_path text;
 BEGIN
     /* Make sure that all of our tables are still persistent */
     FOR r IN
@@ -3329,6 +3332,23 @@ BEGIN
         RAISE EXCEPTION 'history table "%" must remain persistent because it has periods',
             r.table_name;
     END LOOP;
+
+    /* Check that our system versioning functions are still here */
+    save_search_path := pg_catalog.current_setting('search_path');
+    PERFORM pg_catalog.set_config('search_path', 'pg_catalog, pg_temp', true);
+    FOR r IN
+        SELECT *
+        FROM periods.system_versioning AS sv
+        CROSS JOIN LATERAL UNNEST(ARRAY[sv.func_as_of, sv.func_between, sv.func_between_symmetric, sv.func_from_to]) AS u (fn)
+        WHERE NOT EXISTS (
+            SELECT FROM pg_catalog.pg_proc AS p
+            WHERE p.oid::regprocedure::text = u.fn
+        )
+    LOOP
+        RAISE EXCEPTION 'cannot drop or rename function "%" because it is used in SYSTEM VERSIONING for table "%"',
+            r.fn, r.table_name;
+    END LOOP;
+    PERFORM pg_catalog.set_config('search_path', save_search_path, true);
 
     /* Fix up history and for-portion objects ownership */
     FOR cmd IN
@@ -3356,7 +3376,7 @@ BEGIN
         SELECT format('ALTER FUNCTION %s OWNER TO %I', p.oid::regprocedure, t.relowner::regrole)
         FROM periods.system_versioning AS sv
         JOIN pg_class AS t ON t.oid = sv.table_name
-        JOIN pg_proc AS p ON p.oid IN (sv.func_as_of, sv.func_between, sv.func_between_symmetric, sv.func_from_to)
+        JOIN pg_proc AS p ON p.oid = ANY (ARRAY[sv.func_as_of, sv.func_between, sv.func_between_symmetric, sv.func_from_to]::regprocedure[])
         WHERE t.relowner <> p.proowner
     LOOP
         EXECUTE cmd;
@@ -3412,7 +3432,7 @@ BEGIN
                        acl.grantee,
                        'h'
                 FROM periods.system_versioning AS sv
-                JOIN pg_proc AS p ON p.oid IN (sv.func_as_of, sv.func_between, sv.func_between_symmetric, sv.func_from_to)
+                JOIN pg_proc AS p ON p.oid = ANY (ARRAY[sv.func_as_of, sv.func_between, sv.func_between_symmetric, sv.func_from_to]::regprocedure[])
                 CROSS JOIN LATERAL aclexplode(COALESCE(p.proacl, acldefault('f', p.proowner))) AS acl
             ) AS objects
             ORDER BY object_name, object_type, privilege_type
@@ -3471,7 +3491,7 @@ BEGIN
                 FROM periods.system_versioning AS sv
                 JOIN pg_class AS c ON c.oid = sv.table_name
                 CROSS JOIN LATERAL aclexplode(COALESCE(c.relacl, acldefault('r', c.relowner))) AS acl
-                JOIN pg_proc AS hp ON hp.oid IN (sv.func_as_of, sv.func_between, sv.func_between_symmetric, sv.func_from_to)
+                JOIN pg_proc AS hp ON hp.oid = ANY (ARRAY[sv.func_as_of, sv.func_between, sv.func_between_symmetric, sv.func_from_to]::regprocedure[])
                 WHERE acl.privilege_type = 'SELECT'
                   AND NOT has_function_privilege(acl.grantee, hp.oid, 'EXECUTE')
             ) AS objects
@@ -3528,7 +3548,7 @@ BEGIN
             FROM periods.system_versioning AS sv
             JOIN pg_class AS c ON c.oid = sv.table_name
             CROSS JOIN LATERAL aclexplode(COALESCE(c.relacl, acldefault('r', c.relowner))) AS acl
-            JOIN pg_proc AS hp ON hp.oid IN (sv.func_as_of, sv.func_between, sv.func_between_symmetric, sv.func_from_to)
+            JOIN pg_proc AS hp ON hp.oid = ANY (ARRAY[sv.func_as_of, sv.func_between, sv.func_between_symmetric, sv.func_from_to]::regprocedure[])
             WHERE acl.privilege_type = 'SELECT'
               AND NOT EXISTS (
                 SELECT
@@ -3578,7 +3598,7 @@ BEGIN
                        'EXECUTE' AS privilege_type,
                        hacl.grantee
                 FROM periods.system_versioning AS sv
-                JOIN pg_proc AS hp ON hp.oid IN (sv.func_as_of, sv.func_between, sv.func_between_symmetric, sv.func_from_to)
+                JOIN pg_proc AS hp ON hp.oid = ANY (ARRAY[sv.func_as_of, sv.func_between, sv.func_between_symmetric, sv.func_from_to]::regprocedure[])
                 CROSS JOIN LATERAL aclexplode(COALESCE(hp.proacl, acldefault('f', hp.proowner))) AS hacl
                 WHERE hacl.privilege_type = 'EXECUTE'
                   AND NOT has_table_privilege(hacl.grantee, sv.table_name, 'SELECT')

@@ -45,9 +45,9 @@ NOTICE:  history table "custom_history_name" created for "sysver", be sure to in
 (1 row)
 
 TABLE periods.system_versioning;
- table_name | period_name | history_table_name  |    view_name     |               func_as_of               |                           func_between                            |                           func_between_symmetric                            |                           func_from_to                            
-------------+-------------+---------------------+------------------+----------------------------------------+-------------------------------------------------------------------+-----------------------------------------------------------------------------+-------------------------------------------------------------------
- sysver     | system_time | custom_history_name | custom_view_name | custom_as_of(timestamp with time zone) | custom_between(timestamp with time zone,timestamp with time zone) | custom_between_symmetric(timestamp with time zone,timestamp with time zone) | custom_from_to(timestamp with time zone,timestamp with time zone)
+ table_name | period_name | history_table_name  |    view_name     |                  func_as_of                   |                               func_between                               |                               func_between_symmetric                               |                               func_from_to                               
+------------+-------------+---------------------+------------------+-----------------------------------------------+--------------------------------------------------------------------------+------------------------------------------------------------------------------------+--------------------------------------------------------------------------
+ sysver     | system_time | custom_history_name | custom_view_name | public.custom_as_of(timestamp with time zone) | public.custom_between(timestamp with time zone,timestamp with time zone) | public.custom_between_symmetric(timestamp with time zone,timestamp with time zone) | public.custom_from_to(timestamp with time zone,timestamp with time zone)
 (1 row)
 
 SELECT periods.drop_system_versioning('sysver', drop_behavior => 'CASCADE');
@@ -65,9 +65,9 @@ NOTICE:  history table "sysver_history" created for "sysver", be sure to index i
 (1 row)
 
 TABLE periods.system_versioning;
- table_name | period_name | history_table_name |      view_name      |               func_as_of                |                            func_between                            |                            func_between_symmetric                            |                            func_from_to                            
-------------+-------------+--------------------+---------------------+-----------------------------------------+--------------------------------------------------------------------+------------------------------------------------------------------------------+--------------------------------------------------------------------
- sysver     | system_time | sysver_history     | sysver_with_history | sysver__as_of(timestamp with time zone) | sysver__between(timestamp with time zone,timestamp with time zone) | sysver__between_symmetric(timestamp with time zone,timestamp with time zone) | sysver__from_to(timestamp with time zone,timestamp with time zone)
+ table_name | period_name | history_table_name |      view_name      |                   func_as_of                   |                               func_between                                |                               func_between_symmetric                                |                               func_from_to                                
+------------+-------------+--------------------+---------------------+------------------------------------------------+---------------------------------------------------------------------------+-------------------------------------------------------------------------------------+---------------------------------------------------------------------------
+ sysver     | system_time | sysver_history     | sysver_with_history | public.sysver__as_of(timestamp with time zone) | public.sysver__between(timestamp with time zone,timestamp with time zone) | public.sysver__between_symmetric(timestamp with time zone,timestamp with time zone) | public.sysver__from_to(timestamp with time zone,timestamp with time zone)
 (1 row)
 
 INSERT INTO sysver (val, flap) VALUES ('hello', false);

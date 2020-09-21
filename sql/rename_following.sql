@@ -61,6 +61,11 @@ TABLE periods.foreign_keys;
 DROP TABLE rename_test_ref;
 
 /* system_versioning */
--- Nothing to do here
+SELECT periods.add_system_versioning('rename_test');
+ALTER FUNCTION rename_test__as_of(timestamp with time zone) RENAME TO bumble_bee;
+ALTER FUNCTION rename_test__between(timestamp with time zone, timestamp with time zone) RENAME TO bumble_bee;
+ALTER FUNCTION rename_test__between_symmetric(timestamp with time zone, timestamp with time zone) RENAME TO bumble_bee;
+ALTER FUNCTION rename_test__from_to(timestamp with time zone, timestamp with time zone) RENAME TO bumble_bee;
+SELECT periods.drop_system_versioning('rename_test', purge => true);
 
 DROP TABLE rename_test;

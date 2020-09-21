@@ -171,5 +171,29 @@ TABLE periods.foreign_keys;
 
 DROP TABLE rename_test_ref;
 /* system_versioning */
--- Nothing to do here
+SELECT periods.add_system_versioning('rename_test');
+NOTICE:  history table "rename_test_history" created for "rename_test", be sure to index it properly
+ add_system_versioning 
+-----------------------
+ 
+(1 row)
+
+ALTER FUNCTION rename_test__as_of(timestamp with time zone) RENAME TO bumble_bee;
+ERROR:  cannot drop or rename function "public.rename_test__as_of(timestamp with time zone)" because it is used in SYSTEM VERSIONING for table "public.rename_test"
+CONTEXT:  PL/pgSQL function periods.health_checks() line 42 at RAISE
+ALTER FUNCTION rename_test__between(timestamp with time zone, timestamp with time zone) RENAME TO bumble_bee;
+ERROR:  cannot drop or rename function "public.rename_test__between(timestamp with time zone,timestamp with time zone)" because it is used in SYSTEM VERSIONING for table "public.rename_test"
+CONTEXT:  PL/pgSQL function periods.health_checks() line 42 at RAISE
+ALTER FUNCTION rename_test__between_symmetric(timestamp with time zone, timestamp with time zone) RENAME TO bumble_bee;
+ERROR:  cannot drop or rename function "public.rename_test__between_symmetric(timestamp with time zone,timestamp with time zone)" because it is used in SYSTEM VERSIONING for table "public.rename_test"
+CONTEXT:  PL/pgSQL function periods.health_checks() line 42 at RAISE
+ALTER FUNCTION rename_test__from_to(timestamp with time zone, timestamp with time zone) RENAME TO bumble_bee;
+ERROR:  cannot drop or rename function "public.rename_test__from_to(timestamp with time zone,timestamp with time zone)" because it is used in SYSTEM VERSIONING for table "public.rename_test"
+CONTEXT:  PL/pgSQL function periods.health_checks() line 42 at RAISE
+SELECT periods.drop_system_versioning('rename_test', purge => true);
+ drop_system_versioning 
+------------------------
+ t
+(1 row)
+
 DROP TABLE rename_test;

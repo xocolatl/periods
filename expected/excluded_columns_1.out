@@ -40,9 +40,9 @@ TABLE periods.system_time_periods;
 (1 row)
 
 TABLE periods.system_versioning;
- table_name | period_name | history_table_name |     view_name     |              func_as_of               |                           func_between                           |                           func_between_symmetric                           |                           func_from_to                           
-------------+-------------+--------------------+-------------------+---------------------------------------+------------------------------------------------------------------+----------------------------------------------------------------------------+------------------------------------------------------------------
- excl       | system_time | excl_history       | excl_with_history | excl__as_of(timestamp with time zone) | excl__between(timestamp with time zone,timestamp with time zone) | excl__between_symmetric(timestamp with time zone,timestamp with time zone) | excl__from_to(timestamp with time zone,timestamp with time zone)
+ table_name | period_name | history_table_name |     view_name     |                  func_as_of                  |                              func_between                               |                              func_between_symmetric                               |                              func_from_to                               
+------------+-------------+--------------------+-------------------+----------------------------------------------+-------------------------------------------------------------------------+-----------------------------------------------------------------------------------+-------------------------------------------------------------------------
+ excl       | system_time | excl_history       | excl_with_history | public.excl__as_of(timestamp with time zone) | public.excl__between(timestamp with time zone,timestamp with time zone) | public.excl__between_symmetric(timestamp with time zone,timestamp with time zone) | public.excl__from_to(timestamp with time zone,timestamp with time zone)
 (1 row)
 
 BEGIN;

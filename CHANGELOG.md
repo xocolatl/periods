@@ -13,6 +13,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
     Users must REINDEX all indexes on history tables.
 
+  - Don't use `regprocedure` in our catalogs, they prevent `pg_upgrade` from working.
+    This reduces functionality a little but, but not being able to upgrade is a
+    showstopper.
+
 ## [1.1] – 2020-02-05
 
 ### Added
