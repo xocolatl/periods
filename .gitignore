@@ -1,1 +1,6 @@
 .vscode/
+periods.o
+periods.so
+regression.diffs
+regression.out
+results/
