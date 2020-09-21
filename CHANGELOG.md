@@ -7,6 +7,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Added
+### Fixed
+
+## [1.2] – 2020-09-21
+
+### Added
 
   - Add Access Control to prevent users from modifying the history.  Only the table owner
     and superusers can do this because we can't prevent it.
@@ -60,6 +65,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   - Initial release. Supports all features of the SQL Standard
     concerning periods and `SYSTEM VERSIONING`.
 
-[Unreleased]: https://github.com/xocolatl/periods/compare/v1.1...HEAD
+[Unreleased]: https://github.com/xocolatl/periods/compare/v1.2...HEAD
+[1.2]: https://github.com/xocolatl/periods/compare/v1.1...v1.2
 [1.1]: https://github.com/xocolatl/periods/compare/v1.0...v1.1
 [1.0]: https://github.com/xocolatl/periods/releases/tag/v1.0
