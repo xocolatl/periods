@@ -6,12 +6,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+
+  - Add Access Control to prevent users from modifying the history.  Only the table owner
+    and superusers can do this because we can't prevent it.
+
+  - Compatibility with PostgreSQL 13
+
 ### Fixed
 
   - Use SPI to insert into the history table.  They previous way of doing it didn't
     update the indexes, leading to wrong results depending on the execution plan.
 
     Users must REINDEX all indexes on history tables.
+
+  - Ensure all of our functions are `SECURITY DEFINER`.
+
+  - Ensure ownership of history and for-portion objects follow the main table's owner.
+
+  - Quote all identifiers when building queries.
 
   - Don't use `regprocedure` in our catalogs, they prevent `pg_upgrade` from working.
     This reduces functionality a little but, but not being able to upgrade is a
