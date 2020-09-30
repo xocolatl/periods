@@ -6,6 +6,18 @@ postgresql-periods (1.2-1) unstable; urgency=medium
 
  -- Christoph Berg <myon@debian.org>  Wed, 30 Sep 2020 16:43:33 +0200
 
+postgresql-periods (1.1-1) unstable; urgency=medium
+
+  * New upstream version.
+
+ -- Christoph Berg <myon@debian.org>  Wed, 05 Feb 2020 13:07:16 +0100
+
+postgresql-periods (1.0-2) unstable; urgency=medium
+
+  * Upload for PostgreSQL 12.
+
+ -- Christoph Berg <myon@debian.org>  Thu, 31 Oct 2019 12:59:23 +0100
+
 postgresql-periods (1.0-1) unstable; urgency=medium
 
   * New upstream version.
