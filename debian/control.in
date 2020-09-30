@@ -3,8 +3,8 @@ Section: database
 Priority: optional
 Maintainer: Debian PostgreSQL Maintainers <team+postgresql@tracker.debian.org>
 Uploaders: Christoph Berg <myon@debian.org>,
-Build-Depends: debhelper (>= 9), postgresql-server-dev-all (>= 153~)
-Standards-Version: 4.4.0
+Build-Depends: debhelper-compat (= 13), postgresql-all (>= 217~)
+Standards-Version: 4.5.0
 Vcs-Browser: https://github.com/xocolatl/periods
 Vcs-Git: https://github.com/xocolatl/periods.git
 Homepage: https://github.com/xocolatl/periods
