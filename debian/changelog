@@ -1,3 +1,11 @@
+postgresql-periods (1.2-2) unstable; urgency=medium
+
+  * Upload for PostgreSQL 13.
+  * R³: no.
+  * debian/tests: Use 'make' instead of postgresql-server-dev-all.
+
+ -- Christoph Berg <myon@debian.org>  Mon, 19 Oct 2020 15:39:38 +0200
+
 postgresql-periods (1.2-1) unstable; urgency=medium
 
   * New upstream version.

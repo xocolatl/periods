@@ -5,6 +5,7 @@ Maintainer: Debian PostgreSQL Maintainers <team+postgresql@tracker.debian.org>
 Uploaders: Christoph Berg <myon@debian.org>,
 Build-Depends: debhelper-compat (= 13), postgresql-all (>= 217~)
 Standards-Version: 4.5.0
+Rules-Requires-Root: no
 Vcs-Browser: https://github.com/xocolatl/periods
 Vcs-Git: https://github.com/xocolatl/periods.git
 Homepage: https://github.com/xocolatl/periods
