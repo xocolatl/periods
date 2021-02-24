@@ -2600,6 +2600,7 @@ BEGIN
         SELECT format('REVOKE ALL ON %s %s FROM %s',
                       CASE object_type
                           WHEN 'r' THEN 'TABLE'
+                          WHEN 'p' THEN 'TABLE'
                           WHEN 'v' THEN 'TABLE'
                           WHEN 'f' THEN 'FUNCTION'
                       ELSE 'ERROR'
