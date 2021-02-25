@@ -3447,7 +3447,7 @@ BEGIN
         LOOP
             IF
                 r.history_or_portion = 'h' AND
-                (r.object_type, r.privilege_type) NOT IN (('r', 'SELECT'), ('v', 'SELECT'), ('f', 'EXECUTE'))
+                (r.object_type, r.privilege_type) NOT IN (('r', 'SELECT'), ('p', 'SELECT'), ('v', 'SELECT'), ('f', 'EXECUTE'))
             THEN
                 RAISE EXCEPTION 'cannot grant % to "%"; history objects are read-only',
                     r.privilege_type, r.object_name;
