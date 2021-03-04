@@ -3362,6 +3362,7 @@ BEGIN
     FOR cmd IN
         SELECT format('ALTER %s %s OWNER TO %I',
             CASE ht.relkind
+                WHEN 'p' THEN 'TABLE'
                 WHEN 'r' THEN 'TABLE'
                 WHEN 'v' THEN 'VIEW'
             END,
