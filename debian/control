@@ -10,9 +10,9 @@ Vcs-Browser: https://github.com/xocolatl/periods
 Vcs-Git: https://github.com/xocolatl/periods.git
 Homepage: https://github.com/xocolatl/periods
 
-Package: postgresql-13-periods
+Package: postgresql-14-periods
 Architecture: any
-Depends: postgresql-13, postgresql-contrib-13, ${misc:Depends}, ${shlibs:Depends}
+Depends: postgresql-14, postgresql-contrib-14, ${misc:Depends}, ${shlibs:Depends}
 Description: PERIODs and SYSTEM VERSIONING for PostgreSQL
  This extension attempts to recreate the behavior defined in SQL:2016
  (originally SQL:2011) around periods and tables with SYSTEM VERSIONING. The

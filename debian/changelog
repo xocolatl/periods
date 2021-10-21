@@ -1,3 +1,9 @@
+postgresql-periods (1.2-4) unstable; urgency=medium
+
+  * Upload for PostgreSQL 14.
+
+ -- Christoph Berg <myon@debian.org>  Thu, 21 Oct 2021 09:58:19 +0200
+
 postgresql-periods (1.2-3) unstable; urgency=medium
 
   * Depend on postgresql-contrib-PGVERSION for btree_gist on 9.x.
