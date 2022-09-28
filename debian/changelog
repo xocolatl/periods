@@ -1,3 +1,9 @@
+postgresql-periods (1.2.1-1) unstable; urgency=medium
+
+  * New version with PG 15 support.
+
+ -- Christoph Berg <myon@debian.org>  Wed, 28 Sep 2022 13:33:57 +0200
+
 postgresql-periods (1.2-4) unstable; urgency=medium
 
   * Upload for PostgreSQL 14.
