@@ -1,2 +1,2 @@
 version=4
-https://github.com/xocolatl/periods/releases .*/v(.*).tar.gz
+https://github.com/xocolatl/periods/tags .*/v(.*).tar.gz

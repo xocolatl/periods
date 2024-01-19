@@ -13,3 +13,5 @@ WHERE extname = 'periods';
 DROP ROLE periods_unprivileged_user;
 ERROR:  role "periods_unprivileged_user" does not exist
 CREATE ROLE periods_unprivileged_user;
+/* Make tests work on PG 15 */
+GRANT CREATE ON SCHEMA public TO PUBLIC;
