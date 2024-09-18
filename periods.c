@@ -208,7 +208,6 @@ OnlyExcludedColumnsChanged(Relation rel, HeapTuple old_row, HeapTuple new_row)
 	{
 		TupleDesc	spitupdesc = SPI_tuptable->tupdesc;
 		bool		isnull;
-		int			i;
 
 		for (i = 0; i < SPI_processed; i++)
 		{
