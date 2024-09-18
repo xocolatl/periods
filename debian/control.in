@@ -2,9 +2,14 @@ Source: postgresql-periods
 Section: database
 Priority: optional
 Maintainer: Debian PostgreSQL Maintainers <team+postgresql@tracker.debian.org>
-Uploaders: Christoph Berg <myon@debian.org>,
-Build-Depends: debhelper-compat (= 13), postgresql-all (>= 217~)
-Standards-Version: 4.6.2
+Uploaders:
+ Christoph Berg <myon@debian.org>,
+Build-Depends:
+ architecture-is-64-bit <!pkg.postgresql.32-bit>,
+ debhelper-compat (= 13),
+ postgresql-all <!nocheck>,
+ postgresql-server-dev-all,
+Standards-Version: 4.7.0
 Rules-Requires-Root: no
 Vcs-Browser: https://github.com/xocolatl/periods
 Vcs-Git: https://github.com/xocolatl/periods.git
@@ -12,7 +17,11 @@ Homepage: https://github.com/xocolatl/periods
 
 Package: postgresql-PGVERSION-periods
 Architecture: any
-Depends: ${postgresql:Depends}, postgresql-contrib-PGVERSION, ${misc:Depends}, ${shlibs:Depends}
+Depends:
+ postgresql-contrib-PGVERSION,
+ ${misc:Depends},
+ ${postgresql:Depends},
+ ${shlibs:Depends},
 Description: PERIODs and SYSTEM VERSIONING for PostgreSQL
  This extension attempts to recreate the behavior defined in SQL:2016
  (originally SQL:2011) around periods and tables with SYSTEM VERSIONING. The

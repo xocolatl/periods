@@ -1,3 +1,12 @@
+postgresql-periods (1.2.3-1) unstable; urgency=medium
+
+  * New upstream version.
+  * Upload for PostgreSQL 17.
+  * Restrict to 64-bit architectures.
+  * Mark postgresql-all as <!nocheck>.
+
+ -- Christoph Berg <myon@debian.org>  Sat, 14 Sep 2024 23:33:38 +0200
+
 postgresql-periods (1.2.2-2) unstable; urgency=medium
 
   * Upload for PostgreSQL 16.
