@@ -4,9 +4,9 @@ SELECT CASE
     WHEN setting::integer >= 90600 THEN '9.6 .. 10'
     ELSE '.. 9.5' END
 FROM pg_settings WHERE name = 'server_version_num';
-   case    
------------
- 9.6 .. 10
+ case  
+-------
+ 17 ..
 (1 row)
 
 /* Tests for access control on the history tables */
@@ -193,19 +193,21 @@ TABLE show_acls ORDER BY sort_order;
 ------------+-------------+-------------------------+-------------+---------------+----------------
           1 | public      | fpacl                   | table       | periods_acl_1 | DELETE
           2 | public      | fpacl                   | table       | periods_acl_1 | INSERT
-          3 | public      | fpacl                   | table       | periods_acl_1 | REFERENCES
-          4 | public      | fpacl                   | table       | periods_acl_1 | SELECT
-          5 | public      | fpacl                   | table       | periods_acl_1 | TRIGGER
-          6 | public      | fpacl                   | table       | periods_acl_1 | TRUNCATE
-          7 | public      | fpacl                   | table       | periods_acl_1 | UPDATE
-          8 | public      | fpacl__for_portion_of_p | view        | periods_acl_1 | DELETE
-          9 | public      | fpacl__for_portion_of_p | view        | periods_acl_1 | INSERT
-         10 | public      | fpacl__for_portion_of_p | view        | periods_acl_1 | REFERENCES
-         11 | public      | fpacl__for_portion_of_p | view        | periods_acl_1 | SELECT
-         12 | public      | fpacl__for_portion_of_p | view        | periods_acl_1 | TRIGGER
-         13 | public      | fpacl__for_portion_of_p | view        | periods_acl_1 | TRUNCATE
-         14 | public      | fpacl__for_portion_of_p | view        | periods_acl_1 | UPDATE
-(14 rows)
+          3 | public      | fpacl                   | table       | periods_acl_1 | MAINTAIN
+          4 | public      | fpacl                   | table       | periods_acl_1 | REFERENCES
+          5 | public      | fpacl                   | table       | periods_acl_1 | SELECT
+          6 | public      | fpacl                   | table       | periods_acl_1 | TRIGGER
+          7 | public      | fpacl                   | table       | periods_acl_1 | TRUNCATE
+          8 | public      | fpacl                   | table       | periods_acl_1 | UPDATE
+          9 | public      | fpacl__for_portion_of_p | view        | periods_acl_1 | DELETE
+         10 | public      | fpacl__for_portion_of_p | view        | periods_acl_1 | INSERT
+         11 | public      | fpacl__for_portion_of_p | view        | periods_acl_1 | MAINTAIN
+         12 | public      | fpacl__for_portion_of_p | view        | periods_acl_1 | REFERENCES
+         13 | public      | fpacl__for_portion_of_p | view        | periods_acl_1 | SELECT
+         14 | public      | fpacl__for_portion_of_p | view        | periods_acl_1 | TRIGGER
+         15 | public      | fpacl__for_portion_of_p | view        | periods_acl_1 | TRUNCATE
+         16 | public      | fpacl__for_portion_of_p | view        | periods_acl_1 | UPDATE
+(16 rows)
 
 GRANT SELECT, UPDATE ON TABLE fpacl__for_portion_of_p TO periods_acl_2; -- fail
 ERROR:  cannot grant SELECT directly to "fpacl__for_portion_of_p"; grant SELECT to "fpacl" instead
@@ -216,23 +218,25 @@ TABLE show_acls ORDER BY sort_order;
 ------------+-------------+-------------------------+-------------+---------------+----------------
           1 | public      | fpacl                   | table       | periods_acl_1 | DELETE
           2 | public      | fpacl                   | table       | periods_acl_1 | INSERT
-          3 | public      | fpacl                   | table       | periods_acl_1 | REFERENCES
-          4 | public      | fpacl                   | table       | periods_acl_1 | SELECT
-          5 | public      | fpacl                   | table       | periods_acl_1 | TRIGGER
-          6 | public      | fpacl                   | table       | periods_acl_1 | TRUNCATE
-          7 | public      | fpacl                   | table       | periods_acl_1 | UPDATE
-          8 | public      | fpacl                   | table       | periods_acl_2 | SELECT
-          9 | public      | fpacl                   | table       | periods_acl_2 | UPDATE
-         10 | public      | fpacl__for_portion_of_p | view        | periods_acl_1 | DELETE
-         11 | public      | fpacl__for_portion_of_p | view        | periods_acl_1 | INSERT
-         12 | public      | fpacl__for_portion_of_p | view        | periods_acl_1 | REFERENCES
-         13 | public      | fpacl__for_portion_of_p | view        | periods_acl_1 | SELECT
-         14 | public      | fpacl__for_portion_of_p | view        | periods_acl_1 | TRIGGER
-         15 | public      | fpacl__for_portion_of_p | view        | periods_acl_1 | TRUNCATE
-         16 | public      | fpacl__for_portion_of_p | view        | periods_acl_1 | UPDATE
-         17 | public      | fpacl__for_portion_of_p | view        | periods_acl_2 | SELECT
-         18 | public      | fpacl__for_portion_of_p | view        | periods_acl_2 | UPDATE
-(18 rows)
+          3 | public      | fpacl                   | table       | periods_acl_1 | MAINTAIN
+          4 | public      | fpacl                   | table       | periods_acl_1 | REFERENCES
+          5 | public      | fpacl                   | table       | periods_acl_1 | SELECT
+          6 | public      | fpacl                   | table       | periods_acl_1 | TRIGGER
+          7 | public      | fpacl                   | table       | periods_acl_1 | TRUNCATE
+          8 | public      | fpacl                   | table       | periods_acl_1 | UPDATE
+          9 | public      | fpacl                   | table       | periods_acl_2 | SELECT
+         10 | public      | fpacl                   | table       | periods_acl_2 | UPDATE
+         11 | public      | fpacl__for_portion_of_p | view        | periods_acl_1 | DELETE
+         12 | public      | fpacl__for_portion_of_p | view        | periods_acl_1 | INSERT
+         13 | public      | fpacl__for_portion_of_p | view        | periods_acl_1 | MAINTAIN
+         14 | public      | fpacl__for_portion_of_p | view        | periods_acl_1 | REFERENCES
+         15 | public      | fpacl__for_portion_of_p | view        | periods_acl_1 | SELECT
+         16 | public      | fpacl__for_portion_of_p | view        | periods_acl_1 | TRIGGER
+         17 | public      | fpacl__for_portion_of_p | view        | periods_acl_1 | TRUNCATE
+         18 | public      | fpacl__for_portion_of_p | view        | periods_acl_1 | UPDATE
+         19 | public      | fpacl__for_portion_of_p | view        | periods_acl_2 | SELECT
+         20 | public      | fpacl__for_portion_of_p | view        | periods_acl_2 | UPDATE
+(20 rows)
 
 REVOKE UPDATE ON TABLE fpacl__for_portion_of_p FROM periods_acl_2; -- fail
 ERROR:  cannot revoke UPDATE directly from "fpacl__for_portion_of_p", revoke UPDATE from "fpacl" instead
@@ -243,21 +247,23 @@ TABLE show_acls ORDER BY sort_order;
 ------------+-------------+-------------------------+-------------+---------------+----------------
           1 | public      | fpacl                   | table       | periods_acl_1 | DELETE
           2 | public      | fpacl                   | table       | periods_acl_1 | INSERT
-          3 | public      | fpacl                   | table       | periods_acl_1 | REFERENCES
-          4 | public      | fpacl                   | table       | periods_acl_1 | SELECT
-          5 | public      | fpacl                   | table       | periods_acl_1 | TRIGGER
-          6 | public      | fpacl                   | table       | periods_acl_1 | TRUNCATE
-          7 | public      | fpacl                   | table       | periods_acl_1 | UPDATE
-          8 | public      | fpacl                   | table       | periods_acl_2 | SELECT
-          9 | public      | fpacl__for_portion_of_p | view        | periods_acl_1 | DELETE
-         10 | public      | fpacl__for_portion_of_p | view        | periods_acl_1 | INSERT
-         11 | public      | fpacl__for_portion_of_p | view        | periods_acl_1 | REFERENCES
-         12 | public      | fpacl__for_portion_of_p | view        | periods_acl_1 | SELECT
-         13 | public      | fpacl__for_portion_of_p | view        | periods_acl_1 | TRIGGER
-         14 | public      | fpacl__for_portion_of_p | view        | periods_acl_1 | TRUNCATE
-         15 | public      | fpacl__for_portion_of_p | view        | periods_acl_1 | UPDATE
-         16 | public      | fpacl__for_portion_of_p | view        | periods_acl_2 | SELECT
-(16 rows)
+          3 | public      | fpacl                   | table       | periods_acl_1 | MAINTAIN
+          4 | public      | fpacl                   | table       | periods_acl_1 | REFERENCES
+          5 | public      | fpacl                   | table       | periods_acl_1 | SELECT
+          6 | public      | fpacl                   | table       | periods_acl_1 | TRIGGER
+          7 | public      | fpacl                   | table       | periods_acl_1 | TRUNCATE
+          8 | public      | fpacl                   | table       | periods_acl_1 | UPDATE
+          9 | public      | fpacl                   | table       | periods_acl_2 | SELECT
+         10 | public      | fpacl__for_portion_of_p | view        | periods_acl_1 | DELETE
+         11 | public      | fpacl__for_portion_of_p | view        | periods_acl_1 | INSERT
+         12 | public      | fpacl__for_portion_of_p | view        | periods_acl_1 | MAINTAIN
+         13 | public      | fpacl__for_portion_of_p | view        | periods_acl_1 | REFERENCES
+         14 | public      | fpacl__for_portion_of_p | view        | periods_acl_1 | SELECT
+         15 | public      | fpacl__for_portion_of_p | view        | periods_acl_1 | TRIGGER
+         16 | public      | fpacl__for_portion_of_p | view        | periods_acl_1 | TRUNCATE
+         17 | public      | fpacl__for_portion_of_p | view        | periods_acl_1 | UPDATE
+         18 | public      | fpacl__for_portion_of_p | view        | periods_acl_2 | SELECT
+(18 rows)
 
 SELECT periods.drop_for_portion_view('fpacl', 'p');
  drop_for_portion_view 
@@ -315,18 +321,19 @@ TABLE show_acls ORDER BY sort_order;
 ------------+-------------+----------------------------+-------------+---------------+----------------
           1 | public      | histacl                    | table       | periods_acl_1 | DELETE
           2 | public      | histacl                    | table       | periods_acl_1 | INSERT
-          3 | public      | histacl                    | table       | periods_acl_1 | REFERENCES
-          4 | public      | histacl                    | table       | periods_acl_1 | SELECT
-          5 | public      | histacl                    | table       | periods_acl_1 | TRIGGER
-          6 | public      | histacl                    | table       | periods_acl_1 | TRUNCATE
-          7 | public      | histacl                    | table       | periods_acl_1 | UPDATE
-          8 | public      | histacl_history            | table       | periods_acl_1 | SELECT
-          9 | public      | histacl_with_history       | view        | periods_acl_1 | SELECT
-         10 | public      | histacl__as_of             | function    | periods_acl_1 | EXECUTE
-         11 | public      | histacl__between           | function    | periods_acl_1 | EXECUTE
-         12 | public      | histacl__between_symmetric | function    | periods_acl_1 | EXECUTE
-         13 | public      | histacl__from_to           | function    | periods_acl_1 | EXECUTE
-(13 rows)
+          3 | public      | histacl                    | table       | periods_acl_1 | MAINTAIN
+          4 | public      | histacl                    | table       | periods_acl_1 | REFERENCES
+          5 | public      | histacl                    | table       | periods_acl_1 | SELECT
+          6 | public      | histacl                    | table       | periods_acl_1 | TRIGGER
+          7 | public      | histacl                    | table       | periods_acl_1 | TRUNCATE
+          8 | public      | histacl                    | table       | periods_acl_1 | UPDATE
+          9 | public      | histacl_history            | table       | periods_acl_1 | SELECT
+         10 | public      | histacl_with_history       | view        | periods_acl_1 | SELECT
+         11 | public      | histacl__as_of             | function    | periods_acl_1 | EXECUTE
+         12 | public      | histacl__between           | function    | periods_acl_1 | EXECUTE
+         13 | public      | histacl__between_symmetric | function    | periods_acl_1 | EXECUTE
+         14 | public      | histacl__from_to           | function    | periods_acl_1 | EXECUTE
+(14 rows)
 
 -- Disconnect, add some privs to the history table, and reconnect
 SELECT periods.drop_system_versioning('histacl');
@@ -341,20 +348,22 @@ TABLE show_acls ORDER BY sort_order;
 ------------+-------------+-----------------+-------------+---------------+----------------
           1 | public      | histacl         | table       | periods_acl_1 | DELETE
           2 | public      | histacl         | table       | periods_acl_1 | INSERT
-          3 | public      | histacl         | table       | periods_acl_1 | REFERENCES
-          4 | public      | histacl         | table       | periods_acl_1 | SELECT
-          5 | public      | histacl         | table       | periods_acl_1 | TRIGGER
-          6 | public      | histacl         | table       | periods_acl_1 | TRUNCATE
-          7 | public      | histacl         | table       | periods_acl_1 | UPDATE
-          8 | public      | histacl_history | table       | periods_acl_1 | SELECT
-          9 | public      | histacl_history | table       | periods_acl_3 | DELETE
-         10 | public      | histacl_history | table       | periods_acl_3 | INSERT
-         11 | public      | histacl_history | table       | periods_acl_3 | REFERENCES
-         12 | public      | histacl_history | table       | periods_acl_3 | SELECT
-         13 | public      | histacl_history | table       | periods_acl_3 | TRIGGER
-         14 | public      | histacl_history | table       | periods_acl_3 | TRUNCATE
-         15 | public      | histacl_history | table       | periods_acl_3 | UPDATE
-(15 rows)
+          3 | public      | histacl         | table       | periods_acl_1 | MAINTAIN
+          4 | public      | histacl         | table       | periods_acl_1 | REFERENCES
+          5 | public      | histacl         | table       | periods_acl_1 | SELECT
+          6 | public      | histacl         | table       | periods_acl_1 | TRIGGER
+          7 | public      | histacl         | table       | periods_acl_1 | TRUNCATE
+          8 | public      | histacl         | table       | periods_acl_1 | UPDATE
+          9 | public      | histacl_history | table       | periods_acl_1 | SELECT
+         10 | public      | histacl_history | table       | periods_acl_3 | DELETE
+         11 | public      | histacl_history | table       | periods_acl_3 | INSERT
+         12 | public      | histacl_history | table       | periods_acl_3 | MAINTAIN
+         13 | public      | histacl_history | table       | periods_acl_3 | REFERENCES
+         14 | public      | histacl_history | table       | periods_acl_3 | SELECT
+         15 | public      | histacl_history | table       | periods_acl_3 | TRIGGER
+         16 | public      | histacl_history | table       | periods_acl_3 | TRUNCATE
+         17 | public      | histacl_history | table       | periods_acl_3 | UPDATE
+(17 rows)
 
 SELECT periods.add_system_versioning('histacl');
  add_system_versioning 
@@ -367,18 +376,19 @@ TABLE show_acls ORDER BY sort_order;
 ------------+-------------+----------------------------+-------------+---------------+----------------
           1 | public      | histacl                    | table       | periods_acl_1 | DELETE
           2 | public      | histacl                    | table       | periods_acl_1 | INSERT
-          3 | public      | histacl                    | table       | periods_acl_1 | REFERENCES
-          4 | public      | histacl                    | table       | periods_acl_1 | SELECT
-          5 | public      | histacl                    | table       | periods_acl_1 | TRIGGER
-          6 | public      | histacl                    | table       | periods_acl_1 | TRUNCATE
-          7 | public      | histacl                    | table       | periods_acl_1 | UPDATE
-          8 | public      | histacl_history            | table       | periods_acl_1 | SELECT
-          9 | public      | histacl_with_history       | view        | periods_acl_1 | SELECT
-         10 | public      | histacl__as_of             | function    | periods_acl_1 | EXECUTE
-         11 | public      | histacl__between           | function    | periods_acl_1 | EXECUTE
-         12 | public      | histacl__between_symmetric | function    | periods_acl_1 | EXECUTE
-         13 | public      | histacl__from_to           | function    | periods_acl_1 | EXECUTE
-(13 rows)
+          3 | public      | histacl                    | table       | periods_acl_1 | MAINTAIN
+          4 | public      | histacl                    | table       | periods_acl_1 | REFERENCES
+          5 | public      | histacl                    | table       | periods_acl_1 | SELECT
+          6 | public      | histacl                    | table       | periods_acl_1 | TRIGGER
+          7 | public      | histacl                    | table       | periods_acl_1 | TRUNCATE
+          8 | public      | histacl                    | table       | periods_acl_1 | UPDATE
+          9 | public      | histacl_history            | table       | periods_acl_1 | SELECT
+         10 | public      | histacl_with_history       | view        | periods_acl_1 | SELECT
+         11 | public      | histacl__as_of             | function    | periods_acl_1 | EXECUTE
+         12 | public      | histacl__between           | function    | periods_acl_1 | EXECUTE
+         13 | public      | histacl__between_symmetric | function    | periods_acl_1 | EXECUTE
+         14 | public      | histacl__from_to           | function    | periods_acl_1 | EXECUTE
+(14 rows)
 
 -- These next 6 blocks should fail
 GRANT ALL ON TABLE histacl_history TO periods_acl_3; -- fail
@@ -395,18 +405,19 @@ TABLE show_acls ORDER BY sort_order;
 ------------+-------------+----------------------------+-------------+---------------+----------------
           1 | public      | histacl                    | table       | periods_acl_1 | DELETE
           2 | public      | histacl                    | table       | periods_acl_1 | INSERT
-          3 | public      | histacl                    | table       | periods_acl_1 | REFERENCES
-          4 | public      | histacl                    | table       | periods_acl_1 | SELECT
-          5 | public      | histacl                    | table       | periods_acl_1 | TRIGGER
-          6 | public      | histacl                    | table       | periods_acl_1 | TRUNCATE
-          7 | public      | histacl                    | table       | periods_acl_1 | UPDATE
-          8 | public      | histacl_history            | table       | periods_acl_1 | SELECT
-          9 | public      | histacl_with_history       | view        | periods_acl_1 | SELECT
-         10 | public      | histacl__as_of             | function    | periods_acl_1 | EXECUTE
-         11 | public      | histacl__between           | function    | periods_acl_1 | EXECUTE
-         12 | public      | histacl__between_symmetric | function    | periods_acl_1 | EXECUTE
-         13 | public      | histacl__from_to           | function    | periods_acl_1 | EXECUTE
-(13 rows)
+          3 | public      | histacl                    | table       | periods_acl_1 | MAINTAIN
+          4 | public      | histacl                    | table       | periods_acl_1 | REFERENCES
+          5 | public      | histacl                    | table       | periods_acl_1 | SELECT
+          6 | public      | histacl                    | table       | periods_acl_1 | TRIGGER
+          7 | public      | histacl                    | table       | periods_acl_1 | TRUNCATE
+          8 | public      | histacl                    | table       | periods_acl_1 | UPDATE
+          9 | public      | histacl_history            | table       | periods_acl_1 | SELECT
+         10 | public      | histacl_with_history       | view        | periods_acl_1 | SELECT
+         11 | public      | histacl__as_of             | function    | periods_acl_1 | EXECUTE
+         12 | public      | histacl__between           | function    | periods_acl_1 | EXECUTE
+         13 | public      | histacl__between_symmetric | function    | periods_acl_1 | EXECUTE
+         14 | public      | histacl__from_to           | function    | periods_acl_1 | EXECUTE
+(14 rows)
 
 GRANT ALL ON TABLE histacl_with_history TO periods_acl_3; -- fail
 ERROR:  cannot grant DELETE to "histacl_with_history"; history objects are read-only
@@ -422,18 +433,19 @@ TABLE show_acls ORDER BY sort_order;
 ------------+-------------+----------------------------+-------------+---------------+----------------
           1 | public      | histacl                    | table       | periods_acl_1 | DELETE
           2 | public      | histacl                    | table       | periods_acl_1 | INSERT
-          3 | public      | histacl                    | table       | periods_acl_1 | REFERENCES
-          4 | public      | histacl                    | table       | periods_acl_1 | SELECT
-          5 | public      | histacl                    | table       | periods_acl_1 | TRIGGER
-          6 | public      | histacl                    | table       | periods_acl_1 | TRUNCATE
-          7 | public      | histacl                    | table       | periods_acl_1 | UPDATE
-          8 | public      | histacl_history            | table       | periods_acl_1 | SELECT
-          9 | public      | histacl_with_history       | view        | periods_acl_1 | SELECT
-         10 | public      | histacl__as_of             | function    | periods_acl_1 | EXECUTE
-         11 | public      | histacl__between           | function    | periods_acl_1 | EXECUTE
-         12 | public      | histacl__between_symmetric | function    | periods_acl_1 | EXECUTE
-         13 | public      | histacl__from_to           | function    | periods_acl_1 | EXECUTE
-(13 rows)
+          3 | public      | histacl                    | table       | periods_acl_1 | MAINTAIN
+          4 | public      | histacl                    | table       | periods_acl_1 | REFERENCES
+          5 | public      | histacl                    | table       | periods_acl_1 | SELECT
+          6 | public      | histacl                    | table       | periods_acl_1 | TRIGGER
+          7 | public      | histacl                    | table       | periods_acl_1 | TRUNCATE
+          8 | public      | histacl                    | table       | periods_acl_1 | UPDATE
+          9 | public      | histacl_history            | table       | periods_acl_1 | SELECT
+         10 | public      | histacl_with_history       | view        | periods_acl_1 | SELECT
+         11 | public      | histacl__as_of             | function    | periods_acl_1 | EXECUTE
+         12 | public      | histacl__between           | function    | periods_acl_1 | EXECUTE
+         13 | public      | histacl__between_symmetric | function    | periods_acl_1 | EXECUTE
+         14 | public      | histacl__from_to           | function    | periods_acl_1 | EXECUTE
+(14 rows)
 
 GRANT ALL ON FUNCTION histacl__as_of(timestamp with time zone) TO periods_acl_3; -- fail
 ERROR:  cannot grant EXECUTE directly to "histacl__as_of(timestamp with time zone)"; grant SELECT to "histacl" instead
@@ -449,18 +461,19 @@ TABLE show_acls ORDER BY sort_order;
 ------------+-------------+----------------------------+-------------+---------------+----------------
           1 | public      | histacl                    | table       | periods_acl_1 | DELETE
           2 | public      | histacl                    | table       | periods_acl_1 | INSERT
-          3 | public      | histacl                    | table       | periods_acl_1 | REFERENCES
-          4 | public      | histacl                    | table       | periods_acl_1 | SELECT
-          5 | public      | histacl                    | table       | periods_acl_1 | TRIGGER
-          6 | public      | histacl                    | table       | periods_acl_1 | TRUNCATE
-          7 | public      | histacl                    | table       | periods_acl_1 | UPDATE
-          8 | public      | histacl_history            | table       | periods_acl_1 | SELECT
-          9 | public      | histacl_with_history       | view        | periods_acl_1 | SELECT
-         10 | public      | histacl__as_of             | function    | periods_acl_1 | EXECUTE
-         11 | public      | histacl__between           | function    | periods_acl_1 | EXECUTE
-         12 | public      | histacl__between_symmetric | function    | periods_acl_1 | EXECUTE
-         13 | public      | histacl__from_to           | function    | periods_acl_1 | EXECUTE
-(13 rows)
+          3 | public      | histacl                    | table       | periods_acl_1 | MAINTAIN
+          4 | public      | histacl                    | table       | periods_acl_1 | REFERENCES
+          5 | public      | histacl                    | table       | periods_acl_1 | SELECT
+          6 | public      | histacl                    | table       | periods_acl_1 | TRIGGER
+          7 | public      | histacl                    | table       | periods_acl_1 | TRUNCATE
+          8 | public      | histacl                    | table       | periods_acl_1 | UPDATE
+          9 | public      | histacl_history            | table       | periods_acl_1 | SELECT
+         10 | public      | histacl_with_history       | view        | periods_acl_1 | SELECT
+         11 | public      | histacl__as_of             | function    | periods_acl_1 | EXECUTE
+         12 | public      | histacl__between           | function    | periods_acl_1 | EXECUTE
+         13 | public      | histacl__between_symmetric | function    | periods_acl_1 | EXECUTE
+         14 | public      | histacl__from_to           | function    | periods_acl_1 | EXECUTE
+(14 rows)
 
 GRANT ALL ON FUNCTION histacl__between(timestamp with time zone, timestamp with time zone) TO periods_acl_3; -- fail
 ERROR:  cannot grant EXECUTE directly to "histacl__between(timestamp with time zone,timestamp with time zone)"; grant SELECT to "histacl" instead
@@ -476,18 +489,19 @@ TABLE show_acls ORDER BY sort_order;
 ------------+-------------+----------------------------+-------------+---------------+----------------
           1 | public      | histacl                    | table       | periods_acl_1 | DELETE
           2 | public      | histacl                    | table       | periods_acl_1 | INSERT
-          3 | public      | histacl                    | table       | periods_acl_1 | REFERENCES
-          4 | public      | histacl                    | table       | periods_acl_1 | SELECT
-          5 | public      | histacl                    | table       | periods_acl_1 | TRIGGER
-          6 | public      | histacl                    | table       | periods_acl_1 | TRUNCATE
-          7 | public      | histacl                    | table       | periods_acl_1 | UPDATE
-          8 | public      | histacl_history            | table       | periods_acl_1 | SELECT
-          9 | public      | histacl_with_history       | view        | periods_acl_1 | SELECT
-         10 | public      | histacl__as_of             | function    | periods_acl_1 | EXECUTE
-         11 | public      | histacl__between           | function    | periods_acl_1 | EXECUTE
-         12 | public      | histacl__between_symmetric | function    | periods_acl_1 | EXECUTE
-         13 | public      | histacl__from_to           | function    | periods_acl_1 | EXECUTE
-(13 rows)
+          3 | public      | histacl                    | table       | periods_acl_1 | MAINTAIN
+          4 | public      | histacl                    | table       | periods_acl_1 | REFERENCES
+          5 | public      | histacl                    | table       | periods_acl_1 | SELECT
+          6 | public      | histacl                    | table       | periods_acl_1 | TRIGGER
+          7 | public      | histacl                    | table       | periods_acl_1 | TRUNCATE
+          8 | public      | histacl                    | table       | periods_acl_1 | UPDATE
+          9 | public      | histacl_history            | table       | periods_acl_1 | SELECT
+         10 | public      | histacl_with_history       | view        | periods_acl_1 | SELECT
+         11 | public      | histacl__as_of             | function    | periods_acl_1 | EXECUTE
+         12 | public      | histacl__between           | function    | periods_acl_1 | EXECUTE
+         13 | public      | histacl__between_symmetric | function    | periods_acl_1 | EXECUTE
+         14 | public      | histacl__from_to           | function    | periods_acl_1 | EXECUTE
+(14 rows)
 
 GRANT ALL ON FUNCTION histacl__between_symmetric(timestamp with time zone, timestamp with time zone) TO periods_acl_3; -- fail
 ERROR:  cannot grant EXECUTE directly to "histacl__between_symmetric(timestamp with time zone,timestamp with time zone)"; grant SELECT to "histacl" instead
@@ -503,18 +517,19 @@ TABLE show_acls ORDER BY sort_order;
 ------------+-------------+----------------------------+-------------+---------------+----------------
           1 | public      | histacl                    | table       | periods_acl_1 | DELETE
           2 | public      | histacl                    | table       | periods_acl_1 | INSERT
-          3 | public      | histacl                    | table       | periods_acl_1 | REFERENCES
-          4 | public      | histacl                    | table       | periods_acl_1 | SELECT
-          5 | public      | histacl                    | table       | periods_acl_1 | TRIGGER
-          6 | public      | histacl                    | table       | periods_acl_1 | TRUNCATE
-          7 | public      | histacl                    | table       | periods_acl_1 | UPDATE
-          8 | public      | histacl_history            | table       | periods_acl_1 | SELECT
-          9 | public      | histacl_with_history       | view        | periods_acl_1 | SELECT
-         10 | public      | histacl__as_of             | function    | periods_acl_1 | EXECUTE
-         11 | public      | histacl__between           | function    | periods_acl_1 | EXECUTE
-         12 | public      | histacl__between_symmetric | function    | periods_acl_1 | EXECUTE
-         13 | public      | histacl__from_to           | function    | periods_acl_1 | EXECUTE
-(13 rows)
+          3 | public      | histacl                    | table       | periods_acl_1 | MAINTAIN
+          4 | public      | histacl                    | table       | periods_acl_1 | REFERENCES
+          5 | public      | histacl                    | table       | periods_acl_1 | SELECT
+          6 | public      | histacl                    | table       | periods_acl_1 | TRIGGER
+          7 | public      | histacl                    | table       | periods_acl_1 | TRUNCATE
+          8 | public      | histacl                    | table       | periods_acl_1 | UPDATE
+          9 | public      | histacl_history            | table       | periods_acl_1 | SELECT
+         10 | public      | histacl_with_history       | view        | periods_acl_1 | SELECT
+         11 | public      | histacl__as_of             | function    | periods_acl_1 | EXECUTE
+         12 | public      | histacl__between           | function    | periods_acl_1 | EXECUTE
+         13 | public      | histacl__between_symmetric | function    | periods_acl_1 | EXECUTE
+         14 | public      | histacl__from_to           | function    | periods_acl_1 | EXECUTE
+(14 rows)
 
 GRANT ALL ON FUNCTION histacl__from_to(timestamp with time zone, timestamp with time zone) TO periods_acl_3; -- fail
 ERROR:  cannot grant EXECUTE directly to "histacl__from_to(timestamp with time zone,timestamp with time zone)"; grant SELECT to "histacl" instead
@@ -530,18 +545,19 @@ TABLE show_acls ORDER BY sort_order;
 ------------+-------------+----------------------------+-------------+---------------+----------------
           1 | public      | histacl                    | table       | periods_acl_1 | DELETE
           2 | public      | histacl                    | table       | periods_acl_1 | INSERT
-          3 | public      | histacl                    | table       | periods_acl_1 | REFERENCES
-          4 | public      | histacl                    | table       | periods_acl_1 | SELECT
-          5 | public      | histacl                    | table       | periods_acl_1 | TRIGGER
-          6 | public      | histacl                    | table       | periods_acl_1 | TRUNCATE
-          7 | public      | histacl                    | table       | periods_acl_1 | UPDATE
-          8 | public      | histacl_history            | table       | periods_acl_1 | SELECT
-          9 | public      | histacl_with_history       | view        | periods_acl_1 | SELECT
-         10 | public      | histacl__as_of             | function    | periods_acl_1 | EXECUTE
-         11 | public      | histacl__between           | function    | periods_acl_1 | EXECUTE
-         12 | public      | histacl__between_symmetric | function    | periods_acl_1 | EXECUTE
-         13 | public      | histacl__from_to           | function    | periods_acl_1 | EXECUTE
-(13 rows)
+          3 | public      | histacl                    | table       | periods_acl_1 | MAINTAIN
+          4 | public      | histacl                    | table       | periods_acl_1 | REFERENCES
+          5 | public      | histacl                    | table       | periods_acl_1 | SELECT
+          6 | public      | histacl                    | table       | periods_acl_1 | TRIGGER
+          7 | public      | histacl                    | table       | periods_acl_1 | TRUNCATE
+          8 | public      | histacl                    | table       | periods_acl_1 | UPDATE
+          9 | public      | histacl_history            | table       | periods_acl_1 | SELECT
+         10 | public      | histacl_with_history       | view        | periods_acl_1 | SELECT
+         11 | public      | histacl__as_of             | function    | periods_acl_1 | EXECUTE
+         12 | public      | histacl__between           | function    | periods_acl_1 | EXECUTE
+         13 | public      | histacl__between_symmetric | function    | periods_acl_1 | EXECUTE
+         14 | public      | histacl__from_to           | function    | periods_acl_1 | EXECUTE
+(14 rows)
 
 -- This one should work and propagate
 GRANT ALL ON TABLE histacl TO periods_acl_2;
@@ -550,31 +566,33 @@ TABLE show_acls ORDER BY sort_order;
 ------------+-------------+----------------------------+-------------+---------------+----------------
           1 | public      | histacl                    | table       | periods_acl_1 | DELETE
           2 | public      | histacl                    | table       | periods_acl_1 | INSERT
-          3 | public      | histacl                    | table       | periods_acl_1 | REFERENCES
-          4 | public      | histacl                    | table       | periods_acl_1 | SELECT
-          5 | public      | histacl                    | table       | periods_acl_1 | TRIGGER
-          6 | public      | histacl                    | table       | periods_acl_1 | TRUNCATE
-          7 | public      | histacl                    | table       | periods_acl_1 | UPDATE
-          8 | public      | histacl                    | table       | periods_acl_2 | DELETE
-          9 | public      | histacl                    | table       | periods_acl_2 | INSERT
-         10 | public      | histacl                    | table       | periods_acl_2 | REFERENCES
-         11 | public      | histacl                    | table       | periods_acl_2 | SELECT
-         12 | public      | histacl                    | table       | periods_acl_2 | TRIGGER
-         13 | public      | histacl                    | table       | periods_acl_2 | TRUNCATE
-         14 | public      | histacl                    | table       | periods_acl_2 | UPDATE
-         15 | public      | histacl_history            | table       | periods_acl_1 | SELECT
-         16 | public      | histacl_history            | table       | periods_acl_2 | SELECT
-         17 | public      | histacl_with_history       | view        | periods_acl_1 | SELECT
-         18 | public      | histacl_with_history       | view        | periods_acl_2 | SELECT
-         19 | public      | histacl__as_of             | function    | periods_acl_1 | EXECUTE
-         20 | public      | histacl__as_of             | function    | periods_acl_2 | EXECUTE
-         21 | public      | histacl__between           | function    | periods_acl_1 | EXECUTE
-         22 | public      | histacl__between           | function    | periods_acl_2 | EXECUTE
-         23 | public      | histacl__between_symmetric | function    | periods_acl_1 | EXECUTE
-         24 | public      | histacl__between_symmetric | function    | periods_acl_2 | EXECUTE
-         25 | public      | histacl__from_to           | function    | periods_acl_1 | EXECUTE
-         26 | public      | histacl__from_to           | function    | periods_acl_2 | EXECUTE
-(26 rows)
+          3 | public      | histacl                    | table       | periods_acl_1 | MAINTAIN
+          4 | public      | histacl                    | table       | periods_acl_1 | REFERENCES
+          5 | public      | histacl                    | table       | periods_acl_1 | SELECT
+          6 | public      | histacl                    | table       | periods_acl_1 | TRIGGER
+          7 | public      | histacl                    | table       | periods_acl_1 | TRUNCATE
+          8 | public      | histacl                    | table       | periods_acl_1 | UPDATE
+          9 | public      | histacl                    | table       | periods_acl_2 | DELETE
+         10 | public      | histacl                    | table       | periods_acl_2 | INSERT
+         11 | public      | histacl                    | table       | periods_acl_2 | MAINTAIN
+         12 | public      | histacl                    | table       | periods_acl_2 | REFERENCES
+         13 | public      | histacl                    | table       | periods_acl_2 | SELECT
+         14 | public      | histacl                    | table       | periods_acl_2 | TRIGGER
+         15 | public      | histacl                    | table       | periods_acl_2 | TRUNCATE
+         16 | public      | histacl                    | table       | periods_acl_2 | UPDATE
+         17 | public      | histacl_history            | table       | periods_acl_1 | SELECT
+         18 | public      | histacl_history            | table       | periods_acl_2 | SELECT
+         19 | public      | histacl_with_history       | view        | periods_acl_1 | SELECT
+         20 | public      | histacl_with_history       | view        | periods_acl_2 | SELECT
+         21 | public      | histacl__as_of             | function    | periods_acl_1 | EXECUTE
+         22 | public      | histacl__as_of             | function    | periods_acl_2 | EXECUTE
+         23 | public      | histacl__between           | function    | periods_acl_1 | EXECUTE
+         24 | public      | histacl__between           | function    | periods_acl_2 | EXECUTE
+         25 | public      | histacl__between_symmetric | function    | periods_acl_1 | EXECUTE
+         26 | public      | histacl__between_symmetric | function    | periods_acl_2 | EXECUTE
+         27 | public      | histacl__from_to           | function    | periods_acl_1 | EXECUTE
+         28 | public      | histacl__from_to           | function    | periods_acl_2 | EXECUTE
+(28 rows)
 
 REVOKE SELECT ON TABLE histacl FROM periods_acl_2;
 TABLE show_acls ORDER BY sort_order;
@@ -582,24 +600,26 @@ TABLE show_acls ORDER BY sort_order;
 ------------+-------------+----------------------------+-------------+---------------+----------------
           1 | public      | histacl                    | table       | periods_acl_1 | DELETE
           2 | public      | histacl                    | table       | periods_acl_1 | INSERT
-          3 | public      | histacl                    | table       | periods_acl_1 | REFERENCES
-          4 | public      | histacl                    | table       | periods_acl_1 | SELECT
-          5 | public      | histacl                    | table       | periods_acl_1 | TRIGGER
-          6 | public      | histacl                    | table       | periods_acl_1 | TRUNCATE
-          7 | public      | histacl                    | table       | periods_acl_1 | UPDATE
-          8 | public      | histacl                    | table       | periods_acl_2 | DELETE
-          9 | public      | histacl                    | table       | periods_acl_2 | INSERT
-         10 | public      | histacl                    | table       | periods_acl_2 | REFERENCES
-         11 | public      | histacl                    | table       | periods_acl_2 | TRIGGER
-         12 | public      | histacl                    | table       | periods_acl_2 | TRUNCATE
-         13 | public      | histacl                    | table       | periods_acl_2 | UPDATE
-         14 | public      | histacl_history            | table       | periods_acl_1 | SELECT
-         15 | public      | histacl_with_history       | view        | periods_acl_1 | SELECT
-         16 | public      | histacl__as_of             | function    | periods_acl_1 | EXECUTE
-         17 | public      | histacl__between           | function    | periods_acl_1 | EXECUTE
-         18 | public      | histacl__between_symmetric | function    | periods_acl_1 | EXECUTE
-         19 | public      | histacl__from_to           | function    | periods_acl_1 | EXECUTE
-(19 rows)
+          3 | public      | histacl                    | table       | periods_acl_1 | MAINTAIN
+          4 | public      | histacl                    | table       | periods_acl_1 | REFERENCES
+          5 | public      | histacl                    | table       | periods_acl_1 | SELECT
+          6 | public      | histacl                    | table       | periods_acl_1 | TRIGGER
+          7 | public      | histacl                    | table       | periods_acl_1 | TRUNCATE
+          8 | public      | histacl                    | table       | periods_acl_1 | UPDATE
+          9 | public      | histacl                    | table       | periods_acl_2 | DELETE
+         10 | public      | histacl                    | table       | periods_acl_2 | INSERT
+         11 | public      | histacl                    | table       | periods_acl_2 | MAINTAIN
+         12 | public      | histacl                    | table       | periods_acl_2 | REFERENCES
+         13 | public      | histacl                    | table       | periods_acl_2 | TRIGGER
+         14 | public      | histacl                    | table       | periods_acl_2 | TRUNCATE
+         15 | public      | histacl                    | table       | periods_acl_2 | UPDATE
+         16 | public      | histacl_history            | table       | periods_acl_1 | SELECT
+         17 | public      | histacl_with_history       | view        | periods_acl_1 | SELECT
+         18 | public      | histacl__as_of             | function    | periods_acl_1 | EXECUTE
+         19 | public      | histacl__between           | function    | periods_acl_1 | EXECUTE
+         20 | public      | histacl__between_symmetric | function    | periods_acl_1 | EXECUTE
+         21 | public      | histacl__from_to           | function    | periods_acl_1 | EXECUTE
+(21 rows)
 
 SELECT periods.drop_system_versioning('histacl', drop_behavior => 'CASCADE', purge => true);
  drop_system_versioning 
@@ -632,13 +652,13 @@ INSERT INTO retention (value) VALUES (1);
 UPDATE retention SET value = 2;
 SET ROLE TO periods_acl_3;
 DELETE FROM retention_history; -- fail
-ERROR:  permission denied for relation retention_history
+ERROR:  permission denied for table retention_history
 SET ROLE TO periods_acl_2;
 DELETE FROM retention_history; -- fail
-ERROR:  permission denied for relation retention_history
+ERROR:  permission denied for table retention_history
 SET ROLE TO periods_acl_1;
 DELETE FROM retention_history; -- fail
-ERROR:  permission denied for relation retention_history
+ERROR:  permission denied for table retention_history
 -- test what the docs say to do
 BEGIN;
 SELECT periods.drop_system_versioning('retention');
