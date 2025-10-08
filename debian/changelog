@@ -1,3 +1,11 @@
+postgresql-periods (1.2.3-2) unstable; urgency=medium
+
+  * Upload for PostgreSQL 18. (Closes: #1117324)
+  * Add ${postgresql:Breaks}.
+  * debian/tests: Depend on postgresql-common-dev instead of 'make'.
+
+ -- Christoph Berg <myon@debian.org>  Wed, 08 Oct 2025 19:43:26 +0200
+
 postgresql-periods (1.2.3-1) unstable; urgency=medium
 
   * New upstream version.

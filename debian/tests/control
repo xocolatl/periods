@@ -1,3 +1,7 @@
-Depends: @, make
-Tests: installcheck
-Restrictions: allow-stderr
+Depends:
+ postgresql-common-dev,
+ @,
+Tests:
+ installcheck,
+Restrictions:
+ allow-stderr,
