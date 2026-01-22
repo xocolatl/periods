@@ -2600,6 +2600,7 @@ BEGIN
         SELECT format('REVOKE ALL ON %s %s FROM %s',
                       CASE object_type
                           WHEN 'r' THEN 'TABLE'
+                          WHEN 'p' THEN 'TABLE'
                           WHEN 'v' THEN 'TABLE'
                           WHEN 'f' THEN 'FUNCTION'
                       ELSE 'ERROR'
@@ -3361,6 +3362,7 @@ BEGIN
     FOR cmd IN
         SELECT format('ALTER %s %s OWNER TO %I',
             CASE ht.relkind
+                WHEN 'p' THEN 'TABLE'
                 WHEN 'r' THEN 'TABLE'
                 WHEN 'v' THEN 'VIEW'
             END,
@@ -3446,7 +3448,7 @@ BEGIN
         LOOP
             IF
                 r.history_or_portion = 'h' AND
-                (r.object_type, r.privilege_type) NOT IN (('r', 'SELECT'), ('v', 'SELECT'), ('f', 'EXECUTE'))
+                (r.object_type, r.privilege_type) NOT IN (('r', 'SELECT'), ('p', 'SELECT'), ('v', 'SELECT'), ('f', 'EXECUTE'))
             THEN
                 RAISE EXCEPTION 'cannot grant % to "%"; history objects are read-only',
                     r.privilege_type, r.object_name;
